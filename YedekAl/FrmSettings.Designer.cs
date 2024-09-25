@@ -1,6 +1,6 @@
 namespace YedekAl
 {
-    partial class FrmIcon
+    partial class FrmSettings
     {
         /// <summary>
         /// Required designer variable.

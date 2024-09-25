@@ -3,9 +3,9 @@ using System.Windows.Forms;
 
 namespace YedekAl
 {
-    public partial class FrmIcon : Form
+    public partial class FrmSettings : Form
     {
-        public FrmIcon()
+        public FrmSettings()
         {
             InitializeComponent();
             txtServiceName.Text = Properties.Settings.Default.serviceName;

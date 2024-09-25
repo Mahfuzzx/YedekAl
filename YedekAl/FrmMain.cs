@@ -46,7 +46,7 @@ namespace YedekAl
 
         private void cmdSettings_Click(object sender, EventArgs e)
         {
-            using (FrmIcon frmIcon = new FrmIcon())
+            using (FrmSettings frmIcon = new FrmSettings())
             {
                 frmIcon.ShowDialog(this);
             }
