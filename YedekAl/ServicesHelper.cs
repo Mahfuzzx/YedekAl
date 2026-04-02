@@ -76,7 +76,7 @@ namespace YedekAl
         static extern int QueryServiceStatus(IntPtr hService, ref SERVICE_STATUS lpServiceStatus);
 
         [DllImport("advapi32.dll", SetLastError = true)]
-        static extern bool StartService(IntPtr hService, int dwNumServiceArgs, int lpServiceArgVectors);
+        static extern bool StartService(IntPtr hService, int dwNumServiceArgs, string[] lpServiceArgVectors);
 
         private readonly FrmMain owner;
 
@@ -150,12 +150,12 @@ namespace YedekAl
             IntPtr hService;
 
             hSManager = OpenSCManager(ComputerName, SERVICES_ACTIVE_DATABASE, SC_MANAGER_ALL_ACCESS);
-            if (hSManager.ToInt64() != 0)
+            if (hSManager != IntPtr.Zero)
             {
                 hService = OpenService(hSManager, ServiceName, SERVICE_ALL_ACCESS);
-                if (hService.ToInt64() != 0)
+                if (hService != IntPtr.Zero)
                 {
-                    StartService(hService, 0, 0);
+                    StartService(hService, 0, null);
                     CloseServiceHandle(hService);
                 }
                 CloseServiceHandle(hSManager);
@@ -185,10 +185,10 @@ namespace YedekAl
             IntPtr hService;
 
             hSManager = OpenSCManager(ComputerName, SERVICES_ACTIVE_DATABASE, SC_MANAGER_ALL_ACCESS);
-            if (hSManager.ToInt64() != 0)
+            if (hSManager != IntPtr.Zero)
             {
                 hService = OpenService(hSManager, ServiceName, SERVICE_ALL_ACCESS);
-                if (hService.ToInt64() != 0)
+                if (hService != IntPtr.Zero)
                 {
                     ControlService(hService, SERVICE_CONTROL_STOP, ref ServiceStatus);
                     CloseServiceHandle(hService);
