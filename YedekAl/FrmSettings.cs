@@ -5,20 +5,23 @@ namespace YedekAl
 {
     public partial class FrmSettings : Form
     {
-        public FrmSettings()
+        private readonly Settings settings;
+
+        public FrmSettings(Settings settings)
         {
             InitializeComponent();
-            txtServiceName.Text = Properties.Settings.Default.serviceName;
-            txtBackupDir.Text = Properties.Settings.Default.backupPath;
-            txtBackupCmd.Text = Properties.Settings.Default.compressCmd;
-            txtDatabaseDir.Text = Properties.Settings.Default.dbPath;
-            txtXCopyCmd.Text = Properties.Settings.Default.copyCmd;
-            chkCompress.Checked = Properties.Settings.Default.compress;
-            chkShutdown.Checked = Properties.Settings.Default.autoShutdown;
-            optCompress.Checked = Properties.Settings.Default.justCompress;
-            optCopy.Checked = Properties.Settings.Default.copyFirst;
+            this.settings = settings;
+            txtServiceName.Text = settings.serviceName;
+            txtBackupDir.Text = settings.backupPath;
+            txtBackupCmd.Text = settings.compressCmd;
+            txtDatabaseDir.Text = settings.dbPath;
+            txtXCopyCmd.Text = settings.copyCmd;
+            chkCompress.Checked = settings.compress;
+            chkShutdown.Checked = settings.autoShutdown;
+            optCompress.Checked = settings.justCompress;
+            optCopy.Checked = settings.copyFirst;
             if (!optCompress.Checked && !optCopy.Checked) optCompress.Checked = true;
-            chkCompress_CheckedChanged(this, null);
+            chkCompress_CheckedChanged(null, null);
         }
 
         private void cmdOK_Click(object sender, EventArgs e)
@@ -35,16 +38,16 @@ namespace YedekAl
             if (pServiceName == "" || pBackupDir == "" || pBackupCmd == "" || pDatabaseDir == "" || pCopyCmd == "") MessageBox.Show("Alanlarýn hepsi doldurulmak zorundadýr.", "Dur", MessageBoxButtons.OK, MessageBoxIcon.Error);
             else
             {
-                Properties.Settings.Default.serviceName = pServiceName;
-                Properties.Settings.Default.backupPath = pBackupDir;
-                Properties.Settings.Default.compressCmd = pBackupCmd;
-                Properties.Settings.Default.dbPath = pDatabaseDir;
-                Properties.Settings.Default.copyCmd = pCopyCmd;
-                Properties.Settings.Default.compress = pCompress;
-                Properties.Settings.Default.justCompress = pCompressDirect;
-                Properties.Settings.Default.copyFirst = pCompressAfterCopy;
-                Properties.Settings.Default.autoShutdown = pAutoShutdown;
-                Properties.Settings.Default.Save();
+                settings.serviceName = pServiceName;
+                settings.backupPath = pBackupDir;
+                settings.compressCmd = pBackupCmd;
+                settings.dbPath = pDatabaseDir;
+                settings.copyCmd = pCopyCmd;
+                settings.compress = pCompress;
+                settings.justCompress = pCompressDirect;
+                settings.copyFirst = pCompressAfterCopy;
+                settings.autoShutdown = pAutoShutdown;
+                settings.save();
                 Close();
             }
         }
