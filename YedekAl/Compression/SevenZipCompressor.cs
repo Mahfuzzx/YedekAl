@@ -6,7 +6,7 @@ namespace YedekAl
 {
     internal sealed class SevenZipCompressor : ExternalCompressor
     {
-        public SevenZipCompressor(string configuredPath) : base(configuredPath, findExe) { }
+        public SevenZipCompressor(string configuredPath, string password = null) : base(configuredPath, findExe, password) { }
 
         public override string name => "7-Zip";
         public override string extension => ".7z";
@@ -15,12 +15,14 @@ namespace YedekAl
         protected override string compressArguments(SourceTree tree, string archivePath, CompressionStrength strength)
         {
             int level = strength == CompressionStrength.Fast ? 1 : strength == CompressionStrength.Best ? 9 : 5;
-            return string.Format("a -t7z -mx={0} -ssw -bsp1 -bso0 -sccUTF-8 -y -- {1} {2}", level, quote(archivePath), quote(tree.rootPath));
+            // -mhe=on also encrypts the file names.
+            string encryption = password == null ? "" : passwordSwitch("-p") + " -mhe=on";
+            return string.Format("a -t7z -mx={0}{1} -ssw -bsp1 -bso0 -sccUTF-8 -y -- {2} {3}", level, encryption, quote(archivePath), quote(tree.rootPath));
         }
 
         protected override string verifyArguments(string archivePath)
         {
-            return "t -bsp1 -bso0 -sccUTF-8 -y -- " + quote(archivePath);
+            return "t" + passwordSwitch("-p") + " -bsp1 -bso0 -sccUTF-8 -y -- " + quote(archivePath);
         }
 
         protected override string describeExitCode(int code)

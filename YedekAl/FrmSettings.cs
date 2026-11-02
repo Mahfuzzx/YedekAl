@@ -35,6 +35,8 @@ namespace YedekAl
             optCopy.Checked = current.copyFirst;
             optCompress.Checked = !current.copyFirst;
             chkVerify.Checked = current.verifyArchive;
+            chkEncrypt.Checked = current.encrypt;
+            lblPasswordNote.Visible = current.protectedPassword.Length > 0;
             rarPath = current.rarPath;
             sevenZipPath = current.sevenZipPath;
             shownFormat = current.format;
@@ -68,6 +70,25 @@ namespace YedekAl
             result.scheduleEnabled = chkSchedule.Checked;
             result.scheduleTime = dtpScheduleTime.Value.ToString("HH:mm", CultureInfo.InvariantCulture);
             result.autoShutdown = chkShutdown.Checked;
+
+            // An empty password box keeps the stored password; turning encryption off forgets it.
+            result.encrypt = chkEncrypt.Checked;
+            bool passwordChanged = false;
+            if (!result.encrypt)
+            {
+                result.protectedPassword = "";
+            }
+            else if (txtPassword.Text.Length > 0 || txtPasswordConfirm.Text.Length > 0)
+            {
+                string problem = txtPassword.Text != txtPasswordConfirm.Text ? "Parolalar eşleşmiyor." : Settings.checkPassword(txtPassword.Text);
+                if (problem != null)
+                {
+                    MessageBox.Show(this, problem, "Dur", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+                result.setPassword(txtPassword.Text);
+                passwordChanged = true;
+            }
 
             List<string> errors = result.validate();
             if (errors.Count > 0)
@@ -103,6 +124,10 @@ namespace YedekAl
                 MessageBox.Show(this, "Ayarlar kaydedildi ancak zamanlanmış görev ayarlanamadı:\r\n" + ex.Message, "YedekAl", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
 
+            if (passwordChanged)
+                MessageBox.Show(this, "Parolayı güvenli bir yere not edin. YedekAl parolayı size geri gösteremez; parola olmadan şifreli yedekler açılamaz.",
+                    "YedekAl", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
             settings = result;
             DialogResult = DialogResult.OK;
         }
@@ -119,6 +144,11 @@ namespace YedekAl
         }
 
         private void chkCompress_CheckedChanged(object sender, EventArgs e)
+        {
+            if (!loading) updateControls();
+        }
+
+        private void chkEncrypt_CheckedChanged(object sender, EventArgs e)
         {
             if (!loading) updateControls();
         }
@@ -182,7 +212,9 @@ namespace YedekAl
             bool external = compress && shownFormat != ArchiveFormat.Zip;
             lblFormat.Enabled = cboFormat.Enabled = compress;
             lblStrength.Enabled = cboStrength.Enabled = compress;
-            optCompress.Enabled = optCopy.Enabled = chkVerify.Enabled = compress;
+            optCompress.Enabled = optCopy.Enabled = chkVerify.Enabled = chkEncrypt.Enabled = compress;
+            bool password = compress && chkEncrypt.Checked;
+            lblPassword.Enabled = txtPassword.Enabled = lblPasswordConfirm.Enabled = txtPasswordConfirm.Enabled = password;
             lblExePath.Enabled = txtExePath.Enabled = cmdBrowseExe.Enabled = external;
             dtpScheduleTime.Enabled = chkSchedule.Checked;
             updateExeStatus();

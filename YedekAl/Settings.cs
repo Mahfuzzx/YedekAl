@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Xml.Serialization;
 
 namespace YedekAl
@@ -25,6 +27,8 @@ namespace YedekAl
         public CompressionStrength strength { get; set; } = CompressionStrength.Normal;
         public bool copyFirst { get; set; }
         public bool verifyArchive { get; set; } = true;
+        public bool encrypt { get; set; }
+        public string protectedPassword { get; set; } = "";
         public string rarPath { get; set; } = "";
         public string sevenZipPath { get; set; } = "";
         public int keepLastCount { get; set; }
@@ -58,11 +62,31 @@ namespace YedekAl
             }
             if (File.Exists(AppPaths.settingsFile)) File.Replace(tempFile, AppPaths.settingsFile, null);
             else File.Move(tempFile, AppPaths.settingsFile);
+            restrictAccess(AppPaths.settingsFile);
         }
 
         public Settings clone()
         {
             return (Settings)MemberwiseClone();
+        }
+
+        public string getPassword()
+        {
+            return SecretProtector.unprotect(protectedPassword);
+        }
+
+        public void setPassword(string password)
+        {
+            protectedPassword = SecretProtector.protect(password);
+        }
+
+        /// <summary>Null when the password is acceptable, otherwise the reason it is not.</summary>
+        public static string checkPassword(string password)
+        {
+            if (password.Length < 8) return "Parola en az 8 karakter olmalıdır.";
+            // Keeps the value safe to pass as a quoted command line argument to rar.exe / 7za.exe.
+            if (password.Contains("\"") || password.EndsWith("\\")) return "Parola \" karakteri içeremez ve \\ ile bitemez.";
+            return null;
         }
 
         public string formatArchiveName(DateTime time)
@@ -99,9 +123,24 @@ namespace YedekAl
                     errors.Add("Arşiv adı şablonu hatalı. Örnek: " + defaultNameTemplate);
                 }
             }
+            if (encrypt)
+            {
+                if (!compress || format == ArchiveFormat.Zip) errors.Add("Şifreleme yalnızca 7z ve RAR biçimlerinde kullanılabilir.");
+                if (string.IsNullOrEmpty(protectedPassword)) errors.Add("Şifreleme için bir parola girilmelidir.");
+            }
             if (keepLastCount < 0 || keepDays < 0) errors.Add("Saklama değerleri negatif olamaz.");
             if (serviceTimeoutSeconds <= 0) errors.Add("Hizmet zaman aşımı sıfırdan büyük olmalıdır.");
             return errors;
+        }
+
+        // The file may hold the archive password, so only Administrators and SYSTEM may read it.
+        private static void restrictAccess(string file)
+        {
+            FileSecurity security = new FileSecurity();
+            security.SetAccessRuleProtection(true, false);
+            security.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null), FileSystemRights.FullControl, AccessControlType.Allow));
+            security.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null), FileSystemRights.FullControl, AccessControlType.Allow));
+            File.SetAccessControl(file, security);
         }
 
         // First run after the update: carry over what still applies from the old per-user settings.

@@ -15,12 +15,14 @@ namespace YedekAl
     {
         private static readonly Regex percentPattern = new Regex(@"(\d{1,3})%", RegexOptions.Compiled);
 
-        protected ExternalCompressor(string configuredPath, Func<string> findDefault)
+        protected ExternalCompressor(string configuredPath, Func<string> findDefault, string password)
         {
             exePath = string.IsNullOrWhiteSpace(configuredPath) ? findDefault() : configuredPath.Trim();
+            this.password = string.IsNullOrEmpty(password) ? null : password;
         }
 
         public string exePath { get; }
+        protected string password { get; }
         public abstract string name { get; }
         public abstract string extension { get; }
         protected abstract Encoding outputEncoding { get; }
@@ -64,6 +66,7 @@ namespace YedekAl
             {
                 UseShellExecute = false,
                 CreateNoWindow = true,
+                RedirectStandardInput = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 StandardOutputEncoding = outputEncoding,
@@ -74,6 +77,8 @@ namespace YedekAl
             using (Process process = Process.Start(startInfo))
             using (token.Register(() => kill(process)))
             {
+                // Closed stdin makes any unexpected prompt (e.g. "Enter password") fail instead of hanging.
+                process.StandardInput.Close();
                 Task<string> errorTask = process.StandardError.ReadToEndAsync();
                 StringBuilder tail = new StringBuilder();
                 char[] buffer = new char[4096];
@@ -117,6 +122,12 @@ namespace YedekAl
         protected static string quote(string path)
         {
             return "\"" + path.TrimEnd('\\') + "\"";
+        }
+
+        // Settings.checkPassword() rejects quotes and a trailing backslash, so plain quoting is safe here.
+        protected string passwordSwitch(string prefix)
+        {
+            return password == null ? "" : " \"" + prefix + password + "\"";
         }
 
         protected static string readRegistry(string subKey, string valueName)

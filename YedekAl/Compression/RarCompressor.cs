@@ -7,7 +7,7 @@ namespace YedekAl
 {
     internal sealed class RarCompressor : ExternalCompressor
     {
-        public RarCompressor(string configuredPath) : base(configuredPath, findExe) { }
+        public RarCompressor(string configuredPath, string password = null) : base(configuredPath, findExe, password) { }
 
         public override string name => "RAR";
         public override string extension => ".rar";
@@ -17,12 +17,13 @@ namespace YedekAl
         {
             int level = strength == CompressionStrength.Fast ? 1 : strength == CompressionStrength.Best ? 5 : 3;
             string solid = strength == CompressionStrength.Fast ? "" : " -s";
-            return string.Format("a -ep1 -r -m{0}{1} -idc -y -- {2} {3}", level, solid, quote(archivePath), quote(tree.rootPath));
+            // -hp encrypts the file names as well as the data.
+            return string.Format("a -ep1 -r -m{0}{1}{2} -idc -y -- {3} {4}", level, solid, passwordSwitch("-hp"), quote(archivePath), quote(tree.rootPath));
         }
 
         protected override string verifyArguments(string archivePath)
         {
-            return "t -idc -y -- " + quote(archivePath);
+            return "t" + passwordSwitch("-p") + " -idc -y -- " + quote(archivePath);
         }
 
         // rar.exe only prints per-file percentages, so progress is counted by lines that end with "OK".

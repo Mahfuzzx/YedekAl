@@ -99,7 +99,10 @@ namespace YedekAl
             log.info("******** Yedekleme başladı ********");
             try
             {
-                ICompressor compressor = settings.compress ? Compressors.create(settings) : null;
+                ICompressor compressor = settings.compress
+                    ? Compressors.create(settings, settings.encrypt ? settings.getPassword() : null)
+                    : null;
+                if (compressor != null && settings.encrypt) log.info("Arşiv parolayla şifrelenecek.");
                 entry.path = preflight(compressor, entry.start);
                 bool serviceRestarted = createBackup(compressor, entry.path, token);
                 outputComplete = true;

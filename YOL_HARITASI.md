@@ -1,0 +1,31 @@
+# YedekAl Yol Haritası
+
+## Tamamlanan (1. aşama)
+- Servis yönetimi `ServiceController` ile; hata olsa da hizmet yeniden başlatılır
+- Kod içinde kopyalama; ZIP / RAR / 7z seçimi ve sıkıştırma seviyesi
+- Ön kontroller (yetki, hizmet, kaynak, yazma izni, boş alan)
+- Arşiv doğrulama, eski yedekleri saklama kuralına göre silme
+- Log dosyaları ve yedek geçmişi
+- `/auto` modu ve SYSTEM hesabıyla çalışan günlük zamanlanmış görev
+
+## 2. aşama
+- [x] Arşiv şifreleme (7z / RAR; dosya adları da gizlenir, parola DPAPI ile saklanır)
+- [ ] Hata bildirimi (e-posta)
+- [ ] Birden fazla profil
+- [ ] Geri yükleme
+
+## İleride: uzak hedefe yedek
+Yedeğin tek kopyasının aynı makinede durmaması için arşivin ikinci bir hedefe de gönderilmesi.
+
+- Hedef türleri: ağ paylaşımı (UNC), harici disk, ileride SFTP / bulut depolama
+- Zamanlanmış görev SYSTEM hesabıyla çalıştığı için ağ paylaşımında ya bilgisayar hesabına
+  yazma izni verilmeli ya da hedef için ayrı kullanıcı bilgisi DPAPI ile saklanmalı
+- Gönderim sonrası boyut / hash karşılaştırmasıyla doğrulama
+- Uzak hedefte de ayrı saklama kuralı (son N yedek / N gün)
+- Uzak hedefe gönderilemezse yerel yedek geçerli kalmalı; hata uyarı olarak loglanmalı
+  ve bildirim özelliğiyle haber verilmeli
+
+## Teknik borç
+- Kod içi ZIP doğrulaması CRC'leri sıkıştırma sırasında bellekte tutuyor. Sonradan açılan bir
+  ZIP yalnızca yapısal olarak kontrol edilebiliyor; geri yükleme özelliğinden önce CRC'ler
+  ZIP'in merkezi dizininden okunmalı.
