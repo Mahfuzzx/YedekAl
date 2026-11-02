@@ -11,7 +11,7 @@
 ## 2. aşama
 - [x] Arşiv şifreleme (7z / RAR; dosya adları da gizlenir, parola DPAPI ile saklanır)
 - [x] Hata bildirimi (e-posta; SMTP + STARTTLS, istenirse başarılı yedeklerde de)
-- [ ] Birden fazla profil
+- [x] Birden fazla profil (tek zamanlanmış görev dahil profilleri sırayla yedekler, tek özet e-posta)
 - [ ] Geri yükleme
 
 ## İleride: uzak hedefe yedek

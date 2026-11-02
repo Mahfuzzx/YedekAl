@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Windows.Forms;
@@ -50,8 +51,15 @@ namespace YedekAl
                         return 1;
                     }
 
-                    BackupResult result = new BackupEngine(settings, log, null).run(CancellationToken.None);
-                    if (result.success && settings.autoShutdown)
+                    // Profiles run one after another; one failing does not stop the rest.
+                    List<BackupResult> results = new List<BackupResult>();
+                    foreach (Profile profile in settings.profiles.Where(p => p.includeInSchedule))
+                        results.Add(new BackupEngine(settings, profile, log, null).run(CancellationToken.None));
+                    if (results.Count == 0) log.warn("Zamanlanmış yedeklemeye dahil edilmiş profil yok.");
+                    MailNotifier.notifyIfNeeded(settings, results, log);
+
+                    bool allSucceeded = results.Count > 0 && results.All(r => r.success);
+                    if (allSucceeded && settings.autoShutdown)
                     {
                         try
                         {
@@ -63,7 +71,7 @@ namespace YedekAl
                             log.error("Bilgisayar kapatılamadı: " + ex.Message);
                         }
                     }
-                    return result.success ? 0 : 1;
+                    return allSucceeded ? 0 : 1;
                 }
             }
             catch (Exception)

@@ -19,12 +19,12 @@ namespace YedekAl
     internal static class Compressors
     {
         // password is null for an unencrypted archive; ZIP never gets one (Settings.validate() prevents it).
-        public static ICompressor create(Settings settings, string password = null)
+        public static ICompressor create(Profile profile, string password = null)
         {
-            switch (settings.format)
+            switch (profile.format)
             {
-                case ArchiveFormat.Rar: return new RarCompressor(settings.rarPath, password);
-                case ArchiveFormat.SevenZip: return new SevenZipCompressor(settings.sevenZipPath, password);
+                case ArchiveFormat.Rar: return new RarCompressor(profile.rarPath, password);
+                case ArchiveFormat.SevenZip: return new SevenZipCompressor(profile.sevenZipPath, password);
                 default: return new ZipCompressor();
             }
         }

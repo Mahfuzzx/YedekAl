@@ -16,26 +16,31 @@ namespace YedekAl
         public bool cancelled;
         public string outputPath;
         public string message;
+        public string profileName;
+        // Timing, size and status of the run; also what was written to the history file.
+        public HistoryEntry entry;
     }
 
-    // Runs one backup end to end. Used by both the UI and the scheduled task (/auto), on a worker thread.
+    // Runs one profile's backup end to end. Used by both the UI and the scheduled task (/auto), on a worker thread.
     internal sealed class BackupEngine
     {
         private const string mutexName = @"Global\YedekAl_Yedekleme";
         private const string tempPrefix = ".yedekal_gecici_";
 
         private readonly Settings settings;
+        private readonly Profile profile;
         private readonly BackupLogger log;
         private readonly IProgress<int> progress;
 
-        public BackupEngine(Settings settings, BackupLogger log, IProgress<int> progress)
+        public BackupEngine(Settings settings, Profile profile, BackupLogger log, IProgress<int> progress)
         {
             this.settings = settings;
+            this.profile = profile;
             this.log = log;
             this.progress = progress;
         }
 
-        private TimeSpan serviceTimeout => TimeSpan.FromSeconds(settings.serviceTimeoutSeconds);
+        private TimeSpan serviceTimeout => TimeSpan.FromSeconds(profile.serviceTimeoutSeconds);
 
         public BackupResult run(CancellationToken token)
         {
@@ -77,7 +82,8 @@ namespace YedekAl
         {
             const string message = "Başka bir yedekleme zaten çalışıyor.";
             log.error(message);
-            return new BackupResult { message = message };
+            HistoryEntry entry = new HistoryEntry { start = DateTime.Now, status = BackupStatus.Failed, message = message, profileId = profile.id };
+            return new BackupResult { message = message, profileName = profile.name, entry = entry };
         }
 
         // Shared between the elevated UI and the SYSTEM task, so both must be allowed to open it.
@@ -92,17 +98,17 @@ namespace YedekAl
 
         private BackupResult runCore(CancellationToken token)
         {
-            HistoryEntry entry = new HistoryEntry { start = DateTime.Now, status = BackupStatus.Failed };
-            BackupResult result = new BackupResult();
+            HistoryEntry entry = new HistoryEntry { start = DateTime.Now, status = BackupStatus.Failed, profileId = profile.id };
+            BackupResult result = new BackupResult { profileName = profile.name, entry = entry };
             Stopwatch watch = Stopwatch.StartNew();
             bool outputComplete = false;
-            log.info("******** Yedekleme başladı ********");
+            log.info("******** Yedekleme başladı: " + profile.name + " ********");
             try
             {
-                ICompressor compressor = settings.compress
-                    ? Compressors.create(settings, settings.encrypt ? settings.getPassword() : null)
+                ICompressor compressor = profile.compress
+                    ? Compressors.create(profile, profile.encrypt ? profile.getPassword() : null)
                     : null;
-                if (compressor != null && settings.encrypt) log.info("Arşiv parolayla şifrelenecek.");
+                if (compressor != null && profile.encrypt) log.info("Arşiv parolayla şifrelenecek.");
                 entry.path = preflight(compressor, entry.start);
                 bool serviceRestarted = createBackup(compressor, entry.path, token);
                 outputComplete = true;
@@ -141,38 +147,21 @@ namespace YedekAl
             saveHistory(entry);
             if (entry.status == BackupStatus.Success) applyRetention(entry);
             log.info(result.success ? "******** Yedekleme bitti ********" : "******** Yedekleme başarısız ********");
-            if (settings.notifyEnabled && !result.cancelled && (!result.success || settings.notifyOnSuccess))
-                sendNotification(entry, result);
             return result;
-        }
-
-        // A failed e-mail never changes the backup result; it is only logged.
-        private void sendNotification(HistoryEntry entry, BackupResult result)
-        {
-            try
-            {
-                log.info("Bildirim e-postası gönderiliyor: " + settings.mailTo);
-                MailNotifier.sendReport(settings, entry, result, log.lines);
-                log.info("Bildirim e-postası gönderildi.");
-            }
-            catch (Exception ex)
-            {
-                log.warn("Bildirim e-postası gönderilemedi: " + ex.Message);
-            }
         }
 
         // Everything that can be checked without touching the service. Returns the output path.
         private string preflight(ICompressor compressor, DateTime start)
         {
             log.info("Ön kontroller yapılıyor...");
-            List<string> errors = settings.validate();
+            List<string> errors = profile.validate();
             if (errors.Count > 0) throw new InvalidOperationException(string.Join(" ", errors));
             if (!SystemInfo.isAdministrator()) throw new InvalidOperationException("YedekAl yönetici yetkisiyle çalıştırılmalıdır.");
-            if (!ServiceManager.getStatus(settings.serviceName).HasValue)
-                throw new InvalidOperationException("'" + settings.serviceName + "' hizmeti bulunamadı.");
-            if (!Directory.Exists(settings.dbPath) && !File.Exists(settings.dbPath))
-                throw new InvalidOperationException("Veritabanı konumu bulunamadı: " + settings.dbPath);
-            if (SourceTree.isRoot(settings.dbPath))
+            if (!ServiceManager.getStatus(profile.serviceName).HasValue)
+                throw new InvalidOperationException("'" + profile.serviceName + "' hizmeti bulunamadı.");
+            if (!Directory.Exists(profile.dbPath) && !File.Exists(profile.dbPath))
+                throw new InvalidOperationException("Veritabanı konumu bulunamadı: " + profile.dbPath);
+            if (SourceTree.isRoot(profile.dbPath))
                 throw new InvalidOperationException("Veritabanı konumu bir sürücünün kökü olamaz.");
             if (compressor != null)
             {
@@ -180,20 +169,20 @@ namespace YedekAl
                 if (problem != null) throw new InvalidOperationException(problem);
             }
 
-            string source = SourceTree.normalize(settings.dbPath);
-            string backupDir = SourceTree.normalize(settings.backupPath);
+            string source = SourceTree.normalize(profile.dbPath);
+            string backupDir = SourceTree.normalize(profile.backupPath);
             if (SourceTree.isSameOrInside(backupDir, source))
                 throw new InvalidOperationException("Yedekleme konumu veritabanı klasörünün içinde olamaz.");
             Directory.CreateDirectory(backupDir);
             checkWritable(backupDir);
 
-            string output = Path.Combine(backupDir, settings.formatArchiveName(start) + (compressor == null ? "" : compressor.extension));
+            string output = Path.Combine(backupDir, profile.formatArchiveName(start) + (compressor == null ? "" : compressor.extension));
             if (File.Exists(output) || Directory.Exists(output))
                 throw new InvalidOperationException("Bu adla bir yedek zaten var: " + output);
 
             // Worst case the archive is as big as the source; copy-first needs room for the temporary copy too.
             SourceTree tree = SourceTree.scan(source);
-            long required = compressor != null && settings.copyFirst ? tree.totalBytes * 2 : tree.totalBytes;
+            long required = compressor != null && profile.copyFirst ? tree.totalBytes * 2 : tree.totalBytes;
             required += required / 20;
             long? free = SystemInfo.freeSpace(backupDir);
             if (!free.HasValue)
@@ -211,19 +200,19 @@ namespace YedekAl
         // Returns false when the backup itself is fine but the service could not be started again.
         private bool createBackup(ICompressor compressor, string outputPath, CancellationToken token)
         {
-            ServiceControllerStatus? initial = ServiceManager.getStatus(settings.serviceName);
+            ServiceControllerStatus? initial = ServiceManager.getStatus(profile.serviceName);
             bool restartPending = initial.HasValue && initial.Value != ServiceControllerStatus.Stopped;
             bool restarted = true;
             string tempRoot = null;
             SourceTree tree;
             try
             {
-                log.info("Hizmet durduruluyor: " + settings.serviceName);
-                ServiceManager.stop(settings.serviceName, serviceTimeout);
+                log.info("Hizmet durduruluyor: " + profile.serviceName);
+                ServiceManager.stop(profile.serviceName, serviceTimeout);
                 log.info("Hizmet durduruldu.");
 
                 // Scan again now that the service is stopped and files no longer change.
-                tree = SourceTree.scan(settings.dbPath);
+                tree = SourceTree.scan(profile.dbPath);
                 log.info(string.Format("{0} dosya, toplam {1}.", tree.files.Count, SystemInfo.formatSize(tree.totalBytes)));
 
                 if (compressor == null)
@@ -235,9 +224,9 @@ namespace YedekAl
                 else
                 {
                     SourceTree source = tree;
-                    if (settings.copyFirst)
+                    if (profile.copyFirst)
                     {
-                        tempRoot = Path.Combine(SourceTree.normalize(settings.backupPath), tempPrefix + Guid.NewGuid().ToString("N"));
+                        tempRoot = Path.Combine(SourceTree.normalize(profile.backupPath), tempPrefix + Guid.NewGuid().ToString("N"));
                         log.info("Dosyalar geçici klasöre kopyalanıyor...");
                         FileCopier.copy(tree, tempRoot, progress, token);
                         restartPending = false;
@@ -246,7 +235,7 @@ namespace YedekAl
                     }
                     log.info(compressor.name + " ile sıkıştırılıyor...");
                     progress?.Report(0);
-                    compressor.compress(source, outputPath, settings.strength, progress, token);
+                    compressor.compress(source, outputPath, profile.strength, progress, token);
                 }
             }
             finally
@@ -255,7 +244,7 @@ namespace YedekAl
                 if (tempRoot != null) deleteTemp(tempRoot);
             }
 
-            if (compressor != null && settings.verifyArchive)
+            if (compressor != null && profile.verifyArchive)
             {
                 log.info("Arşiv doğrulanıyor...");
                 progress?.Report(0);
@@ -269,8 +258,8 @@ namespace YedekAl
         {
             try
             {
-                log.info("Hizmet başlatılıyor: " + settings.serviceName);
-                ServiceManager.start(settings.serviceName, serviceTimeout);
+                log.info("Hizmet başlatılıyor: " + profile.serviceName);
+                ServiceManager.start(profile.serviceName, serviceTimeout);
                 log.info("Hizmet başlatıldı.");
                 return true;
             }
@@ -283,14 +272,14 @@ namespace YedekAl
 
         private void applyRetention(HistoryEntry current)
         {
-            if (settings.keepLastCount <= 0 && settings.keepDays <= 0) return;
+            if (profile.keepLastCount <= 0 && profile.keepDays <= 0) return;
             try
             {
                 List<HistoryEntry> history = BackupHistory.load();
-                string backupDir = SourceTree.normalize(settings.backupPath);
-                DateTime oldest = DateTime.Now.AddDays(-settings.keepDays);
+                string backupDir = SourceTree.normalize(profile.backupPath);
+                DateTime oldest = DateTime.Now.AddDays(-profile.keepDays);
                 List<HistoryEntry> backups = history
-                    .Where(e => e.status == BackupStatus.Success && isInBackupDir(e.path, backupDir))
+                    .Where(e => e.status == BackupStatus.Success && settings.belongsTo(e, profile) && isInBackupDir(e.path, backupDir))
                     .OrderByDescending(e => e.start)
                     .ToList();
 
@@ -299,8 +288,8 @@ namespace YedekAl
                 {
                     HistoryEntry backup = backups[i];
                     if (string.Equals(backup.path, current.path, StringComparison.OrdinalIgnoreCase)) continue;
-                    bool overCount = settings.keepLastCount > 0 && i >= settings.keepLastCount;
-                    bool tooOld = settings.keepDays > 0 && backup.start < oldest;
+                    bool overCount = profile.keepLastCount > 0 && i >= profile.keepLastCount;
+                    bool tooOld = profile.keepDays > 0 && backup.start < oldest;
                     if (!overCount && !tooOld) continue;
                     try
                     {

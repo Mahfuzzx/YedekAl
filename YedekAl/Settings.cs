@@ -2,41 +2,27 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Security.AccessControl;
 using System.Security.Principal;
+using System.Xml;
+using System.Xml.Linq;
 using System.Xml.Serialization;
 
 namespace YedekAl
 {
-    public enum ArchiveFormat { Zip, Rar, SevenZip }
-
-    public enum CompressionStrength { Fast, Normal, Best }
-
+    // Machine-wide settings: the backup profiles plus what is shared by all of them (schedule, shutdown, e-mail).
     // Kept in ProgramData (not in user.config) so the scheduled task, running as SYSTEM, sees the same settings.
     public class Settings
     {
-        public const string defaultNameTemplate = "yedek_{0:yyyyMMdd_HHmmss}";
         private static readonly XmlSerializer serializer = new XmlSerializer(typeof(Settings));
 
-        public string serviceName { get; set; } = "";
-        public string dbPath { get; set; } = "";
-        public string backupPath { get; set; } = "";
-        public string nameTemplate { get; set; } = defaultNameTemplate;
-        public bool compress { get; set; } = true;
-        public ArchiveFormat format { get; set; } = ArchiveFormat.Zip;
-        public CompressionStrength strength { get; set; } = CompressionStrength.Normal;
-        public bool copyFirst { get; set; }
-        public bool verifyArchive { get; set; } = true;
-        public bool encrypt { get; set; }
-        public string protectedPassword { get; set; } = "";
-        public string rarPath { get; set; } = "";
-        public string sevenZipPath { get; set; } = "";
-        public int keepLastCount { get; set; }
-        public int keepDays { get; set; }
+        public List<Profile> profiles { get; set; } = new List<Profile>();
+        // History lines written before profiles existed belong to this profile.
+        public string legacyProfileId { get; set; } = "";
         public bool scheduleEnabled { get; set; }
         public string scheduleTime { get; set; } = "23:00";
         public bool autoShutdown { get; set; }
-        public int serviceTimeoutSeconds { get; set; } = 60;
         public bool notifyEnabled { get; set; }
         public bool notifyOnSuccess { get; set; }
         public string smtpHost { get; set; } = "";
@@ -49,15 +35,28 @@ namespace YedekAl
 
         public static Settings load()
         {
+            Settings settings;
             if (File.Exists(AppPaths.settingsFile))
             {
-                using (FileStream stream = File.OpenRead(AppPaths.settingsFile))
+                XDocument document = XDocument.Load(AppPaths.settingsFile);
+                using (XmlReader reader = document.CreateReader())
                 {
-                    return (Settings)serializer.Deserialize(stream);
+                    settings = (Settings)serializer.Deserialize(reader);
+                }
+                if (document.Root.Element("profiles") == null)
+                {
+                    settings.adoptLegacyProfile(readLegacyProfile(document));
+                    settings.save();
                 }
             }
-            Settings settings = migrateFromUserSettings();
-            settings.save();
+            else
+            {
+                settings = new Settings();
+                settings.autoShutdown = migrateFromUserSettings(out Profile profile);
+                settings.adoptLegacyProfile(profile);
+                settings.save();
+            }
+            if (settings.profiles.Count == 0) settings.profiles.Add(new Profile());
             return settings;
         }
 
@@ -76,17 +75,19 @@ namespace YedekAl
 
         public Settings clone()
         {
-            return (Settings)MemberwiseClone();
+            Settings copy = (Settings)MemberwiseClone();
+            copy.profiles = profiles.Select(p => p.clone()).ToList();
+            return copy;
         }
 
-        public string getPassword()
+        public Profile findProfile(string id)
         {
-            return SecretProtector.unprotect(protectedPassword, SecretProtector.archivePassword);
+            return profiles.FirstOrDefault(p => p.id == id);
         }
 
-        public void setPassword(string password)
+        internal bool belongsTo(HistoryEntry entry, Profile profile)
         {
-            protectedPassword = SecretProtector.protect(password, SecretProtector.archivePassword);
+            return entry.profileId == profile.id || (entry.profileId.Length == 0 && profile.id == legacyProfileId);
         }
 
         public string getSmtpPassword()
@@ -97,6 +98,25 @@ namespace YedekAl
         public void setSmtpPassword(string password)
         {
             protectedSmtpPassword = SecretProtector.protect(password, SecretProtector.smtpPassword);
+        }
+
+        public TimeSpan getScheduleTime()
+        {
+            TimeSpan time;
+            return TimeSpan.TryParseExact(scheduleTime, @"hh\:mm", CultureInfo.InvariantCulture, out time) ? time : new TimeSpan(23, 0, 0);
+        }
+
+        // Settings shared by all profiles; each profile is checked with Profile.validate().
+        public List<string> validate()
+        {
+            List<string> errors = new List<string>();
+            if (profiles.Count == 0) errors.Add("En az bir profil olmalıdır.");
+            foreach (var group in profiles.GroupBy(p => p.name.Trim(), StringComparer.CurrentCultureIgnoreCase).Where(g => g.Count() > 1))
+                errors.Add("Aynı adda birden fazla profil var: " + group.Key);
+            if (scheduleEnabled && !profiles.Any(p => p.includeInSchedule))
+                errors.Add("Zamanlama açık ama zamanlanmış yedeklemeye dahil edilmiş bir profil yok.");
+            if (notifyEnabled) errors.AddRange(validateMail());
+            return errors;
         }
 
         public List<string> validateMail()
@@ -127,61 +147,23 @@ namespace YedekAl
             }
         }
 
-        /// <summary>Null when the password is acceptable, otherwise the reason it is not.</summary>
-        public static string checkPassword(string password)
+        private void adoptLegacyProfile(Profile profile)
         {
-            if (password.Length < 8) return "Parola en az 8 karakter olmalıdır.";
-            // Keeps the value safe to pass as a quoted command line argument to rar.exe / 7za.exe.
-            if (password.Contains("\"") || password.EndsWith("\\")) return "Parola \" karakteri içeremez ve \\ ile bitemez.";
-            return null;
+            profiles.Insert(0, profile);
+            legacyProfileId = profile.id;
         }
 
-        public string formatArchiveName(DateTime time)
+        // Before profiles, the job fields sat directly under <Settings>; they have the same names on Profile.
+        private static Profile readLegacyProfile(XDocument document)
         {
-            return string.Format(CultureInfo.InvariantCulture, nameTemplate, time);
-        }
-
-        public TimeSpan getScheduleTime()
-        {
-            TimeSpan time;
-            return TimeSpan.TryParseExact(scheduleTime, @"hh\:mm", CultureInfo.InvariantCulture, out time) ? time : new TimeSpan(23, 0, 0);
-        }
-
-        public List<string> validate()
-        {
-            List<string> errors = new List<string>();
-            if (string.IsNullOrWhiteSpace(serviceName)) errors.Add("Hizmet adı boş olamaz.");
-            if (string.IsNullOrWhiteSpace(dbPath)) errors.Add("Veritabanı konumu boş olamaz.");
-            if (string.IsNullOrWhiteSpace(backupPath)) errors.Add("Yedekleme konumu boş olamaz.");
-            if (string.IsNullOrWhiteSpace(nameTemplate) || !nameTemplate.Contains("{0"))
+            XmlSerializer legacySerializer = new XmlSerializer(typeof(Profile), new XmlRootAttribute(document.Root.Name.LocalName));
+            using (XmlReader reader = document.CreateReader())
             {
-                errors.Add("Arşiv adı, " + defaultNameTemplate + " örneğindeki gibi bir tarih alanı içermelidir; yoksa her yedek aynı adı alır.");
+                return (Profile)legacySerializer.Deserialize(reader);
             }
-            else
-            {
-                try
-                {
-                    string name = formatArchiveName(DateTime.Now);
-                    if (name.Trim().Length == 0 || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
-                        errors.Add("Arşiv adı, dosya adlarında kullanılamayan karakterler içeriyor.");
-                }
-                catch (FormatException)
-                {
-                    errors.Add("Arşiv adı şablonu hatalı. Örnek: " + defaultNameTemplate);
-                }
-            }
-            if (encrypt)
-            {
-                if (!compress || format == ArchiveFormat.Zip) errors.Add("Şifreleme yalnızca 7z ve RAR biçimlerinde kullanılabilir.");
-                if (string.IsNullOrEmpty(protectedPassword)) errors.Add("Şifreleme için bir parola girilmelidir.");
-            }
-            if (notifyEnabled) errors.AddRange(validateMail());
-            if (keepLastCount < 0 || keepDays < 0) errors.Add("Saklama değerleri negatif olamaz.");
-            if (serviceTimeoutSeconds <= 0) errors.Add("Hizmet zaman aşımı sıfırdan büyük olmalıdır.");
-            return errors;
         }
 
-        // The file may hold the archive password, so only Administrators and SYSTEM may read it.
+        // The file may hold passwords, so only Administrators and SYSTEM may read it.
         private static void restrictAccess(string file)
         {
             FileSecurity security = new FileSecurity();
@@ -191,31 +173,33 @@ namespace YedekAl
             File.SetAccessControl(file, security);
         }
 
-        // First run after the update: carry over what still applies from the old per-user settings.
-        private static Settings migrateFromUserSettings()
+        // Very first run: carry over what still applies from the old per-user settings. Returns autoShutdown.
+        private static bool migrateFromUserSettings(out Profile profile)
         {
-            Settings settings = new Settings();
+            profile = new Profile();
             try
             {
                 Properties.Settings old = Properties.Settings.Default;
-                settings.serviceName = old.serviceName ?? "";
-                settings.dbPath = old.dbPath ?? "";
-                settings.compress = old.compress;
-                settings.copyFirst = old.compress && old.copyFirst;
-                settings.autoShutdown = old.autoShutdown;
+                profile.serviceName = old.serviceName ?? "";
+                profile.dbPath = old.dbPath ?? "";
+                profile.compress = old.compress;
+                profile.copyFirst = old.compress && old.copyFirst;
 
                 // Old backup paths could end in date placeholders such as D:\Yedek\yedek_%y%a%g; keep the folder only.
                 string oldBackupPath = old.backupPath ?? "";
                 int placeholder = oldBackupPath.IndexOf('%');
-                if (placeholder > 0) settings.backupPath = Path.GetDirectoryName(oldBackupPath.Substring(0, placeholder)) ?? "";
-                else if (placeholder < 0) settings.backupPath = oldBackupPath;
+                if (placeholder > 0) profile.backupPath = Path.GetDirectoryName(oldBackupPath.Substring(0, placeholder)) ?? "";
+                else if (placeholder < 0) profile.backupPath = oldBackupPath;
 
                 string oldCompressCmd = old.compressCmd ?? "";
-                if (oldCompressCmd.IndexOf("rar", StringComparison.OrdinalIgnoreCase) >= 0) settings.format = ArchiveFormat.Rar;
-                else if (oldCompressCmd.IndexOf("7z", StringComparison.OrdinalIgnoreCase) >= 0) settings.format = ArchiveFormat.SevenZip;
+                if (oldCompressCmd.IndexOf("rar", StringComparison.OrdinalIgnoreCase) >= 0) profile.format = ArchiveFormat.Rar;
+                else if (oldCompressCmd.IndexOf("7z", StringComparison.OrdinalIgnoreCase) >= 0) profile.format = ArchiveFormat.SevenZip;
+                return old.autoShutdown;
             }
-            catch (Exception) { }
-            return settings;
+            catch (Exception)
+            {
+                return false;
+            }
         }
     }
 }

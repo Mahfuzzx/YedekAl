@@ -22,20 +22,111 @@ namespace YedekAl
         {
             InitializeComponent();
             this.settings = settings;
+            fillProfiles(settings.profiles[0].id);
+        }
+
+        private Profile currentProfile => cboProfile.SelectedItem as Profile ?? settings.profiles[0];
+
+        private void fillProfiles(string selectedId)
+        {
+            cboProfile.BeginUpdate();
+            cboProfile.Items.Clear();
+            foreach (Profile profile in settings.profiles) cboProfile.Items.Add(profile);
+            cboProfile.EndUpdate();
+            Profile selected = settings.findProfile(selectedId) ?? settings.profiles[0];
+            cboProfile.SelectedIndex = settings.profiles.IndexOf(selected);
+            cmdDeleteProfile.Enabled = settings.profiles.Count > 1;
+        }
+
+        private void cboProfile_SelectedIndexChanged(object sender, EventArgs e)
+        {
             refreshServiceStatus();
             loadHistory();
         }
 
         private void cmdSettings_Click(object sender, EventArgs e)
         {
-            using (FrmSettings frmSettings = new FrmSettings(settings))
+            using (FrmGeneral frmGeneral = new FrmGeneral(settings))
             {
-                if (frmSettings.ShowDialog(this) == DialogResult.OK)
-                {
-                    settings = frmSettings.settings;
-                    refreshServiceStatus();
-                }
+                if (frmGeneral.ShowDialog(this) == DialogResult.OK) settings = frmGeneral.settings;
             }
+        }
+
+        private void cmdNewProfile_Click(object sender, EventArgs e)
+        {
+            string name = uniqueProfileName("Yeni profil");
+            Profile profile = new Profile { name = name };
+            editAndAdd(profile);
+        }
+
+        private void cmdDuplicateProfile_Click(object sender, EventArgs e)
+        {
+            editAndAdd(currentProfile.duplicate(uniqueProfileName(currentProfile.name + " (kopya)")));
+        }
+
+        private void cmdEditProfile_Click(object sender, EventArgs e)
+        {
+            Profile current = currentProfile;
+            using (FrmProfile frmProfile = new FrmProfile(current, settings.profiles.Where(p => p.id != current.id).Select(p => p.name)))
+            {
+                if (frmProfile.ShowDialog(this) != DialogResult.OK) return;
+                Settings updated = settings.clone();
+                updated.profiles[settings.profiles.IndexOf(current)] = frmProfile.profile;
+                if (applySettings(updated)) fillProfiles(current.id);
+            }
+        }
+
+        private void cmdDeleteProfile_Click(object sender, EventArgs e)
+        {
+            Profile current = currentProfile;
+            if (settings.profiles.Count < 2) return;
+            if (MessageBox.Show(this, "'" + current.name + "' profili silinsin mi?\r\n\r\nBu profille alınmış yedek dosyaları silinmez.",
+                    "YedekAl", MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2) != DialogResult.Yes)
+                return;
+            Settings updated = settings.clone();
+            updated.profiles.RemoveAll(p => p.id == current.id);
+            if (applySettings(updated)) fillProfiles(updated.profiles[0].id);
+        }
+
+        private void editAndAdd(Profile profile)
+        {
+            using (FrmProfile frmProfile = new FrmProfile(profile, settings.profiles.Select(p => p.name)))
+            {
+                if (frmProfile.ShowDialog(this) != DialogResult.OK) return;
+                Settings updated = settings.clone();
+                updated.profiles.Add(frmProfile.profile);
+                if (applySettings(updated)) fillProfiles(frmProfile.profile.id);
+            }
+        }
+
+        private string uniqueProfileName(string baseName)
+        {
+            string name = baseName;
+            for (int i = 2; settings.profiles.Any(p => string.Equals(p.name, name, StringComparison.CurrentCultureIgnoreCase)); i++)
+                name = baseName + " " + i;
+            return name;
+        }
+
+        // Validates and saves the shared settings; on success they become the current ones.
+        private bool applySettings(Settings updated)
+        {
+            List<string> errors = updated.validate();
+            if (errors.Count > 0)
+            {
+                MessageBox.Show(this, string.Join("\r\n", errors), "Dur", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return false;
+            }
+            try
+            {
+                updated.save();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Ayarlar kaydedilemedi:\r\n" + ex.Message, "YedekAl", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return false;
+            }
+            settings = updated;
+            return true;
         }
 
         private void cmdLogs_Click(object sender, EventArgs e)
@@ -51,7 +142,7 @@ namespace YedekAl
 
         private void refreshServiceStatus()
         {
-            ServiceControllerStatus? status = ServiceManager.getStatus(settings.serviceName);
+            ServiceControllerStatus? status = ServiceManager.getStatus(currentProfile.serviceName);
             bool running = status == ServiceControllerStatus.Running;
             imgOn.Visible = running;
             imgOff.Visible = !running;
@@ -65,15 +156,15 @@ namespace YedekAl
 
         private async void cmdStop_Click(object sender, EventArgs e)
         {
-            string name = settings.serviceName;
-            TimeSpan timeout = TimeSpan.FromSeconds(settings.serviceTimeoutSeconds);
+            string name = currentProfile.serviceName;
+            TimeSpan timeout = TimeSpan.FromSeconds(currentProfile.serviceTimeoutSeconds);
             await runServiceAction("Hizmet durduruluyor: " + name, "Hizmet durduruldu.", () => ServiceManager.stop(name, timeout));
         }
 
         private async void cmdStart_Click(object sender, EventArgs e)
         {
-            string name = settings.serviceName;
-            TimeSpan timeout = TimeSpan.FromSeconds(settings.serviceTimeoutSeconds);
+            string name = currentProfile.serviceName;
+            TimeSpan timeout = TimeSpan.FromSeconds(currentProfile.serviceTimeoutSeconds);
             await runServiceAction("Hizmet başlatılıyor: " + name, "Hizmet başlatıldı.", () => ServiceManager.start(name, timeout));
         }
 
@@ -98,6 +189,24 @@ namespace YedekAl
 
         private async void cmdBackup_Click(object sender, EventArgs e)
         {
+            await runBackups(new List<Profile> { currentProfile });
+        }
+
+        private async void cmdBackupAll_Click(object sender, EventArgs e)
+        {
+            List<Profile> profiles = settings.profiles.Where(p => p.includeInSchedule).ToList();
+            if (profiles.Count == 0)
+            {
+                MessageBox.Show(this, "Zamanlanmış yedeklemeye dahil edilmiş profil yok. Profil ayarlarından seçebilirsiniz.",
+                    "YedekAl", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            await runBackups(profiles);
+        }
+
+        // Backs up the given profiles one after another, then sends one e-mail for all of them.
+        private async Task runBackups(List<Profile> profiles)
+        {
             setBusy(true, true);
             prgBackup.Value = 0;
             cancellation = new CancellationTokenSource();
@@ -106,14 +215,21 @@ namespace YedekAl
             Progress<string> logSink = new Progress<string>(log);
             Progress<int> percent = new Progress<int>(value => prgBackup.Value = Math.Max(0, Math.Min(100, value)));
 
-            BackupResult result = null;
+            List<BackupResult> results = null;
             try
             {
-                result = await Task.Run(() =>
+                results = await Task.Run(() =>
                 {
                     using (BackupLogger logger = new BackupLogger(logSink))
                     {
-                        return new BackupEngine(current, logger, percent).run(token);
+                        List<BackupResult> done = new List<BackupResult>();
+                        foreach (Profile profile in profiles)
+                        {
+                            if (token.IsCancellationRequested) break;
+                            done.Add(new BackupEngine(current, profile, logger, percent).run(token));
+                        }
+                        MailNotifier.notifyIfNeeded(current, done, logger);
+                        return done;
                     }
                 });
             }
@@ -129,7 +245,8 @@ namespace YedekAl
                 loadHistory();
             }
 
-            if (result != null && result.success && current.autoShutdown) scheduleShutdown();
+            bool allSucceeded = results != null && results.Count == profiles.Count && results.All(r => r.success);
+            if (allSucceeded && current.autoShutdown) scheduleShutdown();
         }
 
         private void cmdCancel_Click(object sender, EventArgs e)
@@ -170,8 +287,8 @@ namespace YedekAl
         private void setBusy(bool value, bool backup)
         {
             busy = value;
-            cmdBackup.Enabled = !value;
-            cmdSettings.Enabled = !value;
+            cmdBackup.Enabled = cmdBackupAll.Enabled = !value;
+            cmdSettings.Enabled = mnuProfile.Enabled = cboProfile.Enabled = !value;
             cmdCancel.Enabled = value && backup;
             if (value)
             {
@@ -206,7 +323,8 @@ namespace YedekAl
 
             lvHistory.BeginUpdate();
             lvHistory.Items.Clear();
-            foreach (HistoryEntry entry in entries.OrderByDescending(x => x.start).Take(100))
+            Profile profile = currentProfile;
+            foreach (HistoryEntry entry in entries.Where(x => settings.belongsTo(x, profile)).OrderByDescending(x => x.start).Take(100))
             {
                 bool hasFile = entry.status == BackupStatus.Success || entry.status == BackupStatus.Deleted;
                 ListViewItem item = new ListViewItem(entry.start.ToString("dd.MM.yyyy HH:mm", CultureInfo.InvariantCulture));

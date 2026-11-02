@@ -16,6 +16,8 @@ namespace YedekAl
         public long size;
         public string path = "";
         public string message = "";
+        // Empty for lines written before profiles existed (see Settings.legacyProfileId).
+        public string profileId = "";
 
         public string statusText
         {
@@ -65,7 +67,8 @@ namespace YedekAl
                         status = status,
                         size = size,
                         path = parts[4],
-                        message = parts[5]
+                        message = parts[5],
+                        profileId = parts.Length > 6 ? parts[6] : ""
                     });
                 }
             }
@@ -98,7 +101,8 @@ namespace YedekAl
                 entry.status.ToString(),
                 entry.size.ToString(invariant),
                 clean(entry.path),
-                clean(entry.message));
+                clean(entry.message),
+                clean(entry.profileId));
         }
 
         private static string clean(string value)

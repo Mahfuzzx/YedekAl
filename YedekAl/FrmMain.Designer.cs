@@ -31,8 +31,15 @@
             this.components = new System.ComponentModel.Container();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(FrmMain));
             this.mnuMain = new System.Windows.Forms.MenuStrip();
+            this.mnuProfile = new System.Windows.Forms.ToolStripMenuItem();
+            this.cmdNewProfile = new System.Windows.Forms.ToolStripMenuItem();
+            this.cmdEditProfile = new System.Windows.Forms.ToolStripMenuItem();
+            this.cmdDuplicateProfile = new System.Windows.Forms.ToolStripMenuItem();
+            this.cmdDeleteProfile = new System.Windows.Forms.ToolStripMenuItem();
             this.cmdSettings = new System.Windows.Forms.ToolStripMenuItem();
             this.cmdLogs = new System.Windows.Forms.ToolStripMenuItem();
+            this.lblProfile = new System.Windows.Forms.Label();
+            this.cboProfile = new System.Windows.Forms.ComboBox();
             this.groupBox1 = new System.Windows.Forms.GroupBox();
             this.cmdStop = new System.Windows.Forms.Button();
             this.cmdStart = new System.Windows.Forms.Button();
@@ -40,6 +47,7 @@
             this.imgOff = new System.Windows.Forms.PictureBox();
             this.imgOn = new System.Windows.Forms.PictureBox();
             this.cmdBackup = new System.Windows.Forms.Button();
+            this.cmdBackupAll = new System.Windows.Forms.Button();
             this.cmdCancel = new System.Windows.Forms.Button();
             this.prgBackup = new System.Windows.Forms.ProgressBar();
             this.txtLog = new System.Windows.Forms.TextBox();
@@ -60,6 +68,7 @@
             // mnuMain
             //
             this.mnuMain.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.mnuProfile,
             this.cmdSettings,
             this.cmdLogs});
             this.mnuMain.Location = new System.Drawing.Point(0, 0);
@@ -67,6 +76,45 @@
             this.mnuMain.Size = new System.Drawing.Size(520, 24);
             this.mnuMain.TabIndex = 0;
             this.mnuMain.Text = "menuStrip1";
+            //
+            // mnuProfile
+            //
+            this.mnuProfile.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.cmdNewProfile,
+            this.cmdEditProfile,
+            this.cmdDuplicateProfile,
+            this.cmdDeleteProfile});
+            this.mnuProfile.Name = "mnuProfile";
+            this.mnuProfile.Size = new System.Drawing.Size(45, 20);
+            this.mnuProfile.Text = "&Profil";
+            //
+            // cmdNewProfile
+            //
+            this.cmdNewProfile.Name = "cmdNewProfile";
+            this.cmdNewProfile.Size = new System.Drawing.Size(180, 22);
+            this.cmdNewProfile.Text = "&Yeni profil...";
+            this.cmdNewProfile.Click += new System.EventHandler(this.cmdNewProfile_Click);
+            //
+            // cmdEditProfile
+            //
+            this.cmdEditProfile.Name = "cmdEditProfile";
+            this.cmdEditProfile.Size = new System.Drawing.Size(180, 22);
+            this.cmdEditProfile.Text = "Profili &düzenle...";
+            this.cmdEditProfile.Click += new System.EventHandler(this.cmdEditProfile_Click);
+            //
+            // cmdDuplicateProfile
+            //
+            this.cmdDuplicateProfile.Name = "cmdDuplicateProfile";
+            this.cmdDuplicateProfile.Size = new System.Drawing.Size(180, 22);
+            this.cmdDuplicateProfile.Text = "Profili &kopyala...";
+            this.cmdDuplicateProfile.Click += new System.EventHandler(this.cmdDuplicateProfile_Click);
+            //
+            // cmdDeleteProfile
+            //
+            this.cmdDeleteProfile.Name = "cmdDeleteProfile";
+            this.cmdDeleteProfile.Size = new System.Drawing.Size(180, 22);
+            this.cmdDeleteProfile.Text = "Profili &sil";
+            this.cmdDeleteProfile.Click += new System.EventHandler(this.cmdDeleteProfile_Click);
             //
             // cmdSettings
             //
@@ -82,6 +130,24 @@
             this.cmdLogs.Text = "&Loglar";
             this.cmdLogs.Click += new System.EventHandler(this.cmdLogs_Click);
             //
+            // lblProfile
+            //
+            this.lblProfile.AutoSize = true;
+            this.lblProfile.Location = new System.Drawing.Point(12, 34);
+            this.lblProfile.Name = "lblProfile";
+            this.lblProfile.Size = new System.Drawing.Size(33, 13);
+            this.lblProfile.TabIndex = 1;
+            this.lblProfile.Text = "Pr&ofil:";
+            //
+            // cboProfile
+            //
+            this.cboProfile.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.cboProfile.Location = new System.Drawing.Point(60, 31);
+            this.cboProfile.Name = "cboProfile";
+            this.cboProfile.Size = new System.Drawing.Size(448, 21);
+            this.cboProfile.TabIndex = 2;
+            this.cboProfile.SelectedIndexChanged += new System.EventHandler(this.cboProfile_SelectedIndexChanged);
+            //
             // groupBox1
             //
             this.groupBox1.Controls.Add(this.cmdStop);
@@ -89,10 +155,10 @@
             this.groupBox1.Controls.Add(this.lblServiceStatus);
             this.groupBox1.Controls.Add(this.imgOff);
             this.groupBox1.Controls.Add(this.imgOn);
-            this.groupBox1.Location = new System.Drawing.Point(12, 27);
+            this.groupBox1.Location = new System.Drawing.Point(12, 58);
             this.groupBox1.Name = "groupBox1";
             this.groupBox1.Size = new System.Drawing.Size(496, 60);
-            this.groupBox1.TabIndex = 1;
+            this.groupBox1.TabIndex = 3;
             this.groupBox1.TabStop = false;
             this.groupBox1.Text = "&Veritabanı";
             //
@@ -147,49 +213,59 @@
             //
             // cmdBackup
             //
-            this.cmdBackup.Location = new System.Drawing.Point(12, 95);
+            this.cmdBackup.Location = new System.Drawing.Point(12, 126);
             this.cmdBackup.Name = "cmdBackup";
-            this.cmdBackup.Size = new System.Drawing.Size(400, 30);
-            this.cmdBackup.TabIndex = 2;
+            this.cmdBackup.Size = new System.Drawing.Size(200, 30);
+            this.cmdBackup.TabIndex = 4;
             this.cmdBackup.Text = "&Yedekle";
             this.cmdBackup.UseVisualStyleBackColor = true;
             this.cmdBackup.Click += new System.EventHandler(this.cmdBackup_Click);
             //
+            // cmdBackupAll
+            //
+            this.cmdBackupAll.Location = new System.Drawing.Point(218, 126);
+            this.cmdBackupAll.Name = "cmdBackupAll";
+            this.cmdBackupAll.Size = new System.Drawing.Size(194, 30);
+            this.cmdBackupAll.TabIndex = 5;
+            this.cmdBackupAll.Text = "Tü&münü yedekle";
+            this.cmdBackupAll.UseVisualStyleBackColor = true;
+            this.cmdBackupAll.Click += new System.EventHandler(this.cmdBackupAll_Click);
+            //
             // cmdCancel
             //
             this.cmdCancel.Enabled = false;
-            this.cmdCancel.Location = new System.Drawing.Point(418, 95);
+            this.cmdCancel.Location = new System.Drawing.Point(418, 126);
             this.cmdCancel.Name = "cmdCancel";
             this.cmdCancel.Size = new System.Drawing.Size(90, 30);
-            this.cmdCancel.TabIndex = 3;
+            this.cmdCancel.TabIndex = 6;
             this.cmdCancel.Text = "İp&tal";
             this.cmdCancel.UseVisualStyleBackColor = true;
             this.cmdCancel.Click += new System.EventHandler(this.cmdCancel_Click);
             //
             // prgBackup
             //
-            this.prgBackup.Location = new System.Drawing.Point(12, 131);
+            this.prgBackup.Location = new System.Drawing.Point(12, 162);
             this.prgBackup.Name = "prgBackup";
             this.prgBackup.Size = new System.Drawing.Size(496, 18);
-            this.prgBackup.TabIndex = 4;
+            this.prgBackup.TabIndex = 7;
             //
             // txtLog
             //
-            this.txtLog.Location = new System.Drawing.Point(12, 155);
+            this.txtLog.Location = new System.Drawing.Point(12, 186);
             this.txtLog.Multiline = true;
             this.txtLog.Name = "txtLog";
             this.txtLog.ReadOnly = true;
             this.txtLog.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
             this.txtLog.Size = new System.Drawing.Size(496, 200);
-            this.txtLog.TabIndex = 5;
+            this.txtLog.TabIndex = 8;
             //
             // lblHistory
             //
             this.lblHistory.AutoSize = true;
-            this.lblHistory.Location = new System.Drawing.Point(12, 363);
+            this.lblHistory.Location = new System.Drawing.Point(12, 394);
             this.lblHistory.Name = "lblHistory";
             this.lblHistory.Size = new System.Drawing.Size(73, 13);
-            this.lblHistory.TabIndex = 6;
+            this.lblHistory.TabIndex = 9;
             this.lblHistory.Text = "Son yedekler:";
             //
             // lvHistory
@@ -202,12 +278,12 @@
             this.colFile});
             this.lvHistory.FullRowSelect = true;
             this.lvHistory.HideSelection = false;
-            this.lvHistory.Location = new System.Drawing.Point(12, 380);
+            this.lvHistory.Location = new System.Drawing.Point(12, 411);
             this.lvHistory.MultiSelect = false;
             this.lvHistory.Name = "lvHistory";
             this.lvHistory.ShowItemToolTips = true;
             this.lvHistory.Size = new System.Drawing.Size(496, 168);
-            this.lvHistory.TabIndex = 7;
+            this.lvHistory.TabIndex = 10;
             this.lvHistory.UseCompatibleStateImageBehavior = false;
             this.lvHistory.View = System.Windows.Forms.View.Details;
             //
@@ -246,14 +322,17 @@
             //
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(520, 560);
+            this.ClientSize = new System.Drawing.Size(520, 591);
             this.Controls.Add(this.lvHistory);
             this.Controls.Add(this.lblHistory);
             this.Controls.Add(this.txtLog);
             this.Controls.Add(this.prgBackup);
             this.Controls.Add(this.cmdCancel);
+            this.Controls.Add(this.cmdBackupAll);
             this.Controls.Add(this.cmdBackup);
             this.Controls.Add(this.groupBox1);
+            this.Controls.Add(this.cboProfile);
+            this.Controls.Add(this.lblProfile);
             this.Controls.Add(this.mnuMain);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
@@ -277,8 +356,15 @@
         #endregion
 
         private System.Windows.Forms.MenuStrip mnuMain;
+        private System.Windows.Forms.ToolStripMenuItem mnuProfile;
+        private System.Windows.Forms.ToolStripMenuItem cmdNewProfile;
+        private System.Windows.Forms.ToolStripMenuItem cmdEditProfile;
+        private System.Windows.Forms.ToolStripMenuItem cmdDuplicateProfile;
+        private System.Windows.Forms.ToolStripMenuItem cmdDeleteProfile;
         private System.Windows.Forms.ToolStripMenuItem cmdSettings;
         private System.Windows.Forms.ToolStripMenuItem cmdLogs;
+        private System.Windows.Forms.Label lblProfile;
+        private System.Windows.Forms.ComboBox cboProfile;
         private System.Windows.Forms.GroupBox groupBox1;
         private System.Windows.Forms.PictureBox imgOn;
         private System.Windows.Forms.Button cmdStop;
@@ -286,6 +372,7 @@
         private System.Windows.Forms.Label lblServiceStatus;
         private System.Windows.Forms.PictureBox imgOff;
         private System.Windows.Forms.Button cmdBackup;
+        private System.Windows.Forms.Button cmdBackupAll;
         private System.Windows.Forms.Button cmdCancel;
         private System.Windows.Forms.ProgressBar prgBackup;
         private System.Windows.Forms.TextBox txtLog;

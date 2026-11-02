@@ -27,27 +27,51 @@ namespace YedekAl
                 "Bu bir test e-postasıdır. YedekAl bildirimleri bu adrese gönderilecek." + Environment.NewLine);
         }
 
-        public static void sendReport(Settings settings, HistoryEntry entry, BackupResult result, IEnumerable<string> logLines)
+        // One e-mail per run (a single profile from the UI, or every scheduled profile from /auto).
+        // A failed e-mail never changes the backup results; it is only logged.
+        public static void notifyIfNeeded(Settings settings, List<BackupResult> results, BackupLogger log)
         {
-            send(settings, buildSubject(result), buildBody(settings, entry, result, logLines));
+            List<BackupResult> reported = results.Where(r => !r.cancelled).ToList();
+            if (!settings.notifyEnabled || reported.Count == 0) return;
+            if (!settings.notifyOnSuccess && reported.All(r => r.success)) return;
+            try
+            {
+                log.info("Bildirim e-postası gönderiliyor: " + settings.mailTo);
+                send(settings, buildSubject(reported), buildBody(reported, log.lines));
+                log.info("Bildirim e-postası gönderildi.");
+            }
+            catch (Exception ex)
+            {
+                log.warn("Bildirim e-postası gönderilemedi: " + ex.Message);
+            }
         }
 
-        public static string buildSubject(BackupResult result)
+        public static string buildSubject(List<BackupResult> results)
         {
-            return string.Format("[YedekAl] {0}: Yedekleme {1}", Environment.MachineName, result.success ? "başarılı" : "BAŞARISIZ");
+            int failed = results.Count(r => !r.success);
+            string outcome;
+            if (results.Count == 1) outcome = results[0].profileName + " yedeklemesi " + (failed == 0 ? "başarılı" : "BAŞARISIZ");
+            else if (failed == 0) outcome = results.Count + " profilin tümü başarıyla yedeklendi";
+            else outcome = results.Count + " profilden " + failed + " tanesi BAŞARISIZ";
+            return "[YedekAl] " + Environment.MachineName + ": " + outcome;
         }
 
-        public static string buildBody(Settings settings, HistoryEntry entry, BackupResult result, IEnumerable<string> logLines)
+        public static string buildBody(List<BackupResult> results, IEnumerable<string> logLines)
         {
             CultureInfo invariant = CultureInfo.InvariantCulture;
             StringBuilder body = new StringBuilder();
             body.AppendLine("Bilgisayar: " + Environment.MachineName);
-            body.AppendLine("Hizmet: " + settings.serviceName);
-            body.AppendLine("Başlangıç: " + entry.start.ToString("dd.MM.yyyy HH:mm:ss", invariant));
-            body.AppendLine("Süre: " + entry.duration.ToString(@"h\:mm\:ss", invariant));
-            body.AppendLine("Sonuç: " + (result.success ? "Başarılı" : entry.statusText));
-            if (!string.IsNullOrEmpty(result.message)) body.AppendLine("Açıklama: " + result.message);
-            if (result.outputPath != null) body.AppendLine("Yedek: " + result.outputPath + " (" + SystemInfo.formatSize(entry.size) + ")");
+            foreach (BackupResult result in results)
+            {
+                HistoryEntry entry = result.entry;
+                body.AppendLine();
+                body.AppendLine("Profil: " + result.profileName);
+                body.AppendLine("Başlangıç: " + entry.start.ToString("dd.MM.yyyy HH:mm:ss", invariant));
+                body.AppendLine("Süre: " + entry.duration.ToString(@"h\:mm\:ss", invariant));
+                body.AppendLine("Sonuç: " + (result.success ? "Başarılı" : entry.statusText));
+                if (!string.IsNullOrEmpty(result.message)) body.AppendLine("Açıklama: " + result.message);
+                if (result.outputPath != null) body.AppendLine("Yedek: " + result.outputPath + " (" + SystemInfo.formatSize(entry.size) + ")");
+            }
             body.AppendLine();
             body.AppendLine("--- Log ---");
             foreach (string line in logLines) body.AppendLine(line);

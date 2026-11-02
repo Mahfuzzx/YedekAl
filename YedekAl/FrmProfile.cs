@@ -1,31 +1,35 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.Globalization;
+using System.Linq;
 using System.Windows.Forms;
 
 namespace YedekAl
 {
-    public partial class FrmSettings : Form
+    // Edits one backup profile. Saving is left to the caller, which owns the Settings.
+    public partial class FrmProfile : Form
     {
-        // Copy of the current settings; FrmNotify writes the e-mail fields into it.
-        private readonly Settings working;
+        private readonly Profile original;
+        private readonly List<string> otherNames;
         private string rarPath;
         private string sevenZipPath;
         private ArchiveFormat shownFormat;
         private bool loading;
 
-        public Settings settings { get; private set; }
+        public Profile profile { get; private set; }
 
-        public FrmSettings(Settings current)
+        public FrmProfile(Profile current, IEnumerable<string> otherProfileNames)
         {
             InitializeComponent();
-            working = current.clone();
+            original = current;
+            otherNames = otherProfileNames.ToList();
             loading = true;
             // Item order must match the ArchiveFormat and CompressionStrength enums.
             cboFormat.Items.AddRange(new object[] { "ZIP", "RAR", "7z" });
             cboStrength.Items.AddRange(new object[] { "Hızlı", "Normal", "En iyi" });
 
+            txtProfileName.Text = current.name;
+            chkIncludeInSchedule.Checked = current.includeInSchedule;
             txtServiceName.Text = current.serviceName;
             txtDatabaseDir.Text = current.dbPath;
             txtBackupDir.Text = current.backupPath;
@@ -44,10 +48,6 @@ namespace YedekAl
             txtExePath.Text = exePathFor(shownFormat);
             numKeepCount.Value = Math.Min(numKeepCount.Maximum, Math.Max(0, current.keepLastCount));
             numKeepDays.Value = Math.Min(numKeepDays.Maximum, Math.Max(0, current.keepDays));
-            chkSchedule.Checked = current.scheduleEnabled;
-            dtpScheduleTime.Value = DateTime.Today.Add(current.getScheduleTime());
-            chkShutdown.Checked = current.autoShutdown;
-            chkNotify.Checked = current.notifyEnabled;
             loading = false;
             updateControls();
         }
@@ -55,7 +55,9 @@ namespace YedekAl
         private void cmdOK_Click(object sender, EventArgs e)
         {
             storeExePath();
-            Settings result = working.clone();
+            Profile result = original.clone();
+            result.name = txtProfileName.Text.Trim();
+            result.includeInSchedule = chkIncludeInSchedule.Checked;
             result.serviceName = txtServiceName.Text.Trim();
             result.dbPath = txtDatabaseDir.Text.Trim();
             result.backupPath = txtBackupDir.Text.Trim();
@@ -69,10 +71,6 @@ namespace YedekAl
             result.sevenZipPath = sevenZipPath;
             result.keepLastCount = (int)numKeepCount.Value;
             result.keepDays = (int)numKeepDays.Value;
-            result.scheduleEnabled = chkSchedule.Checked;
-            result.scheduleTime = dtpScheduleTime.Value.ToString("HH:mm", CultureInfo.InvariantCulture);
-            result.autoShutdown = chkShutdown.Checked;
-            result.notifyEnabled = chkNotify.Checked;
 
             // An empty password box keeps the stored password; turning encryption off forgets it.
             result.encrypt = chkEncrypt.Checked;
@@ -83,7 +81,7 @@ namespace YedekAl
             }
             else if (txtPassword.Text.Length > 0 || txtPasswordConfirm.Text.Length > 0)
             {
-                string problem = txtPassword.Text != txtPasswordConfirm.Text ? "Parolalar eşleşmiyor." : Settings.checkPassword(txtPassword.Text);
+                string problem = txtPassword.Text != txtPasswordConfirm.Text ? "Parolalar eşleşmiyor." : Profile.checkPassword(txtPassword.Text);
                 if (problem != null)
                 {
                     MessageBox.Show(this, problem, "Dur", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -94,6 +92,8 @@ namespace YedekAl
             }
 
             List<string> errors = result.validate();
+            if (otherNames.Any(n => string.Equals(n.Trim(), result.name, StringComparison.CurrentCultureIgnoreCase)))
+                errors.Add("Bu adda başka bir profil var.");
             if (errors.Count > 0)
             {
                 MessageBox.Show(this, string.Join("\r\n", errors), "Dur", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -102,36 +102,16 @@ namespace YedekAl
             if (result.compress)
             {
                 string problem = Compressors.create(result).checkAvailable();
-                if (problem != null && MessageBox.Show(this, problem + "\r\n\r\nBu programla yedek alınamaz. Ayarlar yine de kaydedilsin mi?",
+                if (problem != null && MessageBox.Show(this, problem + "\r\n\r\nBu programla yedek alınamaz. Profil yine de kaydedilsin mi?",
                         "YedekAl", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
                     return;
-            }
-
-            try
-            {
-                result.save();
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(this, "Ayarlar kaydedilemedi:\r\n" + ex.Message, "YedekAl", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
-            }
-
-            try
-            {
-                if (result.scheduleEnabled) ScheduledTask.createOrUpdate(result.getScheduleTime());
-                else ScheduledTask.delete();
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(this, "Ayarlar kaydedildi ancak zamanlanmış görev ayarlanamadı:\r\n" + ex.Message, "YedekAl", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
 
             if (passwordChanged)
                 MessageBox.Show(this, "Parolayı güvenli bir yere not edin. YedekAl parolayı size geri gösteremez; parola olmadan şifreli yedekler açılamaz.",
                     "YedekAl", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
-            settings = result;
+            profile = result;
             DialogResult = DialogResult.OK;
         }
 
@@ -151,21 +131,7 @@ namespace YedekAl
             if (!loading) updateControls();
         }
 
-        private void cmdNotifySettings_Click(object sender, EventArgs e)
-        {
-            using (FrmNotify frmNotify = new FrmNotify(working))
-            {
-                // Configuring e-mail implies wanting it; the checkbox can still be cleared afterwards.
-                if (frmNotify.ShowDialog(this) == DialogResult.OK) chkNotify.Checked = true;
-            }
-        }
-
         private void chkEncrypt_CheckedChanged(object sender, EventArgs e)
-        {
-            if (!loading) updateControls();
-        }
-
-        private void chkSchedule_CheckedChanged(object sender, EventArgs e)
         {
             if (!loading) updateControls();
         }
@@ -228,7 +194,6 @@ namespace YedekAl
             bool password = compress && chkEncrypt.Checked;
             lblPassword.Enabled = txtPassword.Enabled = lblPasswordConfirm.Enabled = txtPasswordConfirm.Enabled = password;
             lblExePath.Enabled = txtExePath.Enabled = cmdBrowseExe.Enabled = external;
-            dtpScheduleTime.Enabled = chkSchedule.Checked;
             updateExeStatus();
         }
 

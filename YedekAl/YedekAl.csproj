@@ -53,13 +53,20 @@
     <Reference Include="System.ServiceProcess" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml" />
+    <Reference Include="System.Xml.Linq" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="FrmSettings.cs">
+    <Compile Include="FrmGeneral.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="FrmSettings.Designer.cs">
-      <DependentUpon>FrmSettings.cs</DependentUpon>
+    <Compile Include="FrmGeneral.Designer.cs">
+      <DependentUpon>FrmGeneral.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FrmProfile.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FrmProfile.Designer.cs">
+      <DependentUpon>FrmProfile.cs</DependentUpon>
     </Compile>
     <Compile Include="FrmNotify.cs">
       <SubType>Form</SubType>
@@ -73,6 +80,7 @@
     <Compile Include="FrmMain.Designer.cs">
       <DependentUpon>FrmMain.cs</DependentUpon>
     </Compile>
+    <Compile Include="Profile.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Settings.cs" />
@@ -95,9 +103,9 @@
     <Compile Include="Core\SourceTree.cs" />
     <Compile Include="Core\SystemInfo.cs" />
     <Compile Include="Core\SystemShutdown.cs" />
-    <EmbeddedResource Include="FrmSettings.resx">
+    <EmbeddedResource Include="FrmProfile.resx">
       <SubType>Designer</SubType>
-      <DependentUpon>FrmSettings.cs</DependentUpon>
+      <DependentUpon>FrmProfile.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="FrmMain.resx">
       <SubType>Designer</SubType>
@@ -147,4 +155,4 @@
   <Target Name="AfterBuild">
   </Target>
   -->
-</Project>
+</Project>
