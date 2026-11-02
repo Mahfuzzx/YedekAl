@@ -102,6 +102,7 @@
     <Compile Include="Core\BackupHistory.cs" />
     <Compile Include="Core\BackupLogger.cs" />
     <Compile Include="Core\FileCopier.cs" />
+    <Compile Include="Core\ImplicitTlsSmtp.cs" />
     <Compile Include="Core\MailNotifier.cs" />
     <Compile Include="Core\OperationLock.cs" />
     <Compile Include="Core\PercentReporter.cs" />

@@ -8,34 +8,47 @@ namespace YedekAl
     // E-mail notification settings. Edits the mail fields of the Settings object it is given, only on OK.
     public partial class FrmNotify : Form
     {
+        // Usual port for each SmtpSecurity value, in enum order.
+        private static readonly int[] defaultPorts = { 25, 587, 465 };
+
         private readonly Settings target;
         private bool sending;
+        private bool loading;
 
         public FrmNotify(Settings target)
         {
             InitializeComponent();
             this.target = target;
+            loading = true;
+            // Item order must match the SmtpSecurity enum.
+            cboSmtpSecurity.Items.AddRange(new object[] { "Yok (şifresiz)", "STARTTLS (genellikle 587)", "SSL/TLS (genellikle 465)" });
             txtSmtpHost.Text = target.smtpHost;
             numSmtpPort.Value = Math.Min(numSmtpPort.Maximum, Math.Max(numSmtpPort.Minimum, target.smtpPort));
-            chkSmtpSsl.Checked = target.smtpSsl;
+            cboSmtpSecurity.SelectedIndex = (int)target.smtpSecurity;
             chkTrustAnyCertificate.Checked = target.smtpTrustAnyCertificate;
             txtSmtpUser.Text = target.smtpUser;
             lblPasswordNote.Visible = target.protectedSmtpPassword.Length > 0;
             txtMailFrom.Text = target.mailFrom;
             txtMailTo.Text = target.mailTo;
             chkNotifySuccess.Checked = target.notifyOnSuccess;
+            loading = false;
             updateControls();
         }
 
-        private void chkSmtpSsl_CheckedChanged(object sender, EventArgs e)
+        private SmtpSecurity selectedSecurity => (SmtpSecurity)cboSmtpSecurity.SelectedIndex;
+
+        // Switching security also switches the port, unless the user typed a non-standard one.
+        private void cboSmtpSecurity_SelectedIndexChanged(object sender, EventArgs e)
         {
+            if (loading) return;
+            if (Array.IndexOf(defaultPorts, (int)numSmtpPort.Value) >= 0) numSmtpPort.Value = defaultPorts[(int)selectedSecurity];
             updateControls();
         }
 
         // The certificate is only checked on an encrypted connection.
         private void updateControls()
         {
-            chkTrustAnyCertificate.Enabled = chkSmtpSsl.Checked;
+            chkTrustAnyCertificate.Enabled = selectedSecurity != SmtpSecurity.None;
         }
 
         private void cmdOK_Click(object sender, EventArgs e)
@@ -44,7 +57,7 @@ namespace YedekAl
             if (edited == null) return;
             target.smtpHost = edited.smtpHost;
             target.smtpPort = edited.smtpPort;
-            target.smtpSsl = edited.smtpSsl;
+            target.smtpSecurity = edited.smtpSecurity;
             target.smtpTrustAnyCertificate = edited.smtpTrustAnyCertificate;
             target.smtpUser = edited.smtpUser;
             target.protectedSmtpPassword = edited.protectedSmtpPassword;
@@ -89,8 +102,8 @@ namespace YedekAl
             Settings edited = target.clone();
             edited.smtpHost = txtSmtpHost.Text.Trim();
             edited.smtpPort = (int)numSmtpPort.Value;
-            edited.smtpSsl = chkSmtpSsl.Checked;
-            edited.smtpTrustAnyCertificate = chkSmtpSsl.Checked && chkTrustAnyCertificate.Checked;
+            edited.smtpSecurity = selectedSecurity;
+            edited.smtpTrustAnyCertificate = selectedSecurity != SmtpSecurity.None && chkTrustAnyCertificate.Checked;
             edited.smtpUser = txtSmtpUser.Text.Trim();
             // An empty password box keeps the stored password; no user name means no password.
             if (edited.smtpUser.Length == 0) edited.protectedSmtpPassword = "";

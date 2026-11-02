@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Mail;
 using System.Net.Security;
+using System.Security.Authentication;
 using System.Text;
 
 namespace YedekAl
@@ -91,9 +92,16 @@ namespace YedekAl
                 message.SubjectEncoding = Encoding.UTF8;
                 message.BodyEncoding = Encoding.UTF8;
 
+                if (settings.smtpSecurity == SmtpSecurity.SslTls)
+                {
+                    ImplicitTlsSmtp.send(settings, message, timeoutMilliseconds);
+                    return;
+                }
+
                 using (SmtpClient client = new SmtpClient(settings.smtpHost.Trim(), settings.smtpPort))
                 {
-                    client.EnableSsl = settings.smtpSsl;
+                    bool startTls = settings.smtpSecurity == SmtpSecurity.StartTls;
+                    client.EnableSsl = startTls;
                     client.DeliveryMethod = SmtpDeliveryMethod.Network;
                     client.Timeout = timeoutMilliseconds;
                     client.UseDefaultCredentials = false;
@@ -101,7 +109,7 @@ namespace YedekAl
                         client.Credentials = new NetworkCredential(settings.smtpUser.Trim(), settings.getSmtpPassword());
                     try
                     {
-                        if (settings.smtpSsl && settings.smtpTrustAnyCertificate) sendTrustingAnyCertificate(client, message);
+                        if (startTls && settings.smtpTrustAnyCertificate) sendTrustingAnyCertificate(client, message);
                         else client.Send(message);
                     }
                     catch (SmtpException ex) when (ex.InnerException != null)
@@ -109,8 +117,19 @@ namespace YedekAl
                         // The inner exception usually says what went wrong (DNS, refused connection, TLS).
                         throw new SmtpException(ex.Message + " " + ex.InnerException.Message, ex);
                     }
+                    catch (AuthenticationException ex)
+                    {
+                        throw tlsFailure(ex, settings);
+                    }
                 }
             }
+        }
+
+        // Same message for both TLS modes; the usual cause is a self-signed or expired server certificate.
+        internal static SmtpException tlsFailure(AuthenticationException ex, Settings settings)
+        {
+            string hint = settings.smtpTrustAnyCertificate ? "" : " Sunucu sertifikası güvenilir değilse \"güvenilmeyen sertifikayı kabul et\" seçeneğini deneyin.";
+            return new SmtpException("TLS bağlantısı kurulamadı: " + ex.Message + hint, ex);
         }
 
         // SmtpClient has no per-client certificate callback on .NET Framework, only the process-wide one in

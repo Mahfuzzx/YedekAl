@@ -1,11 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Net;
-using System.Net.Sockets;
-using System.Text;
-using System.Threading.Tasks;
+using System.Net.Mail;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace YedekAl.Tests
@@ -29,6 +26,34 @@ namespace YedekAl.Tests
                     size = success ? 1536 : 0
                 }
             };
+        }
+
+        private static Settings settingsFor(FakeSmtpServer server, SmtpSecurity security, bool trustAnyCertificate)
+        {
+            Settings settings = new Settings
+            {
+                smtpHost = "127.0.0.1",
+                smtpPort = server.port,
+                smtpSecurity = security,
+                smtpTrustAnyCertificate = trustAnyCertificate,
+                smtpUser = "yedek@ornek.com",
+                mailFrom = "yedek@ornek.com",
+                mailTo = "admin@ornek.com; ikinci@ornek.com"
+            };
+            settings.setSmtpPassword("Smtp Parola 1");
+            return settings;
+        }
+
+        private static void assertDelivered(FakeSmtpServer server)
+        {
+            List<string> lines = server.conversation();
+            CollectionAssert.Contains(lines, "USER=yedek@ornek.com");
+            CollectionAssert.Contains(lines, "PASS=Smtp Parola 1");
+            CollectionAssert.Contains(lines, "MAIL FROM:<yedek@ornek.com>");
+            CollectionAssert.Contains(lines, "RCPT TO:<admin@ornek.com>");
+            CollectionAssert.Contains(lines, "RCPT TO:<ikinci@ornek.com>");
+            StringAssert.Contains(server.data, "Subject: =?utf-8?");
+            Assert.IsFalse(server.data.Contains("X-Sender:"), "pickup-folder headers must not be sent");
         }
 
         [TestMethod]
@@ -59,105 +84,57 @@ namespace YedekAl.Tests
         }
 
         [TestMethod]
-        public void SendTest_TalksSmtpWithLogin()
+        public void Send_PlainText()
         {
             using (FakeSmtpServer server = new FakeSmtpServer())
             {
-                Settings settings = new Settings
-                {
-                    smtpHost = "127.0.0.1",
-                    smtpPort = server.port,
-                    smtpSsl = false,
-                    smtpUser = "yedek@ornek.com",
-                    mailFrom = "yedek@ornek.com",
-                    mailTo = "admin@ornek.com; ikinci@ornek.com"
-                };
-                settings.setSmtpPassword("Smtp Parola 1");
-
-                MailNotifier.sendTest(settings);
-
-                List<string> lines = server.conversation();
-                CollectionAssert.Contains(lines, "USER=yedek@ornek.com");
-                CollectionAssert.Contains(lines, "PASS=Smtp Parola 1");
-                CollectionAssert.Contains(lines, "MAIL FROM:<yedek@ornek.com>");
-                CollectionAssert.Contains(lines, "RCPT TO:<admin@ornek.com>");
-                CollectionAssert.Contains(lines, "RCPT TO:<ikinci@ornek.com>");
+                MailNotifier.sendTest(settingsFor(server, SmtpSecurity.None, false));
+                assertDelivered(server);
             }
         }
 
-        // Just enough SMTP (EHLO, AUTH LOGIN, MAIL, RCPT, DATA, QUIT) for one message; records what the client sent.
-        private sealed class FakeSmtpServer : IDisposable
+        [TestMethod]
+        public void Send_SslTls_WithUntrustedCertificateAllowed()
         {
-            private readonly TcpListener listener = new TcpListener(IPAddress.Loopback, 0);
-            private readonly List<string> lines = new List<string>();
-            private readonly Task task;
-
-            public FakeSmtpServer()
+            using (FakeSmtpServer server = new FakeSmtpServer(SmtpSecurity.SslTls))
             {
-                listener.Start();
-                port = ((IPEndPoint)listener.LocalEndpoint).Port;
-                task = Task.Run(() => serve());
+                MailNotifier.sendTest(settingsFor(server, SmtpSecurity.SslTls, true));
+                assertDelivered(server);
+                Assert.IsTrue(server.conversation().Any(l => l.StartsWith("AUTH PLAIN")), "PLAIN is preferred when offered");
             }
+        }
 
-            public int port { get; }
-
-            public List<string> conversation()
+        [TestMethod]
+        public void Send_SslTls_RejectsUntrustedCertificateByDefault()
+        {
+            using (FakeSmtpServer server = new FakeSmtpServer(SmtpSecurity.SslTls))
             {
-                Assert.IsTrue(task.Wait(TimeSpan.FromSeconds(30)), "SMTP conversation did not finish");
-                lock (lines) return new List<string>(lines);
+                SmtpException error = Assert.ThrowsException<SmtpException>(() => MailNotifier.sendTest(settingsFor(server, SmtpSecurity.SslTls, false)));
+                StringAssert.Contains(error.Message, "TLS");
+                Assert.IsFalse(server.conversation().Any(l => l.StartsWith("USER=")), "no credentials may be sent over an untrusted connection");
             }
+        }
 
-            private void serve()
+        [TestMethod]
+        public void Send_StartTls_WithUntrustedCertificateAllowed()
+        {
+            using (FakeSmtpServer server = new FakeSmtpServer(SmtpSecurity.StartTls))
             {
-                using (TcpClient client = listener.AcceptTcpClient())
-                using (NetworkStream stream = client.GetStream())
-                using (StreamReader reader = new StreamReader(stream, Encoding.ASCII))
-                using (StreamWriter writer = new StreamWriter(stream, Encoding.ASCII) { NewLine = "\r\n", AutoFlush = true })
-                {
-                    writer.WriteLine("220 test");
-                    bool data = false;
-                    string line;
-                    while ((line = reader.ReadLine()) != null)
-                    {
-                        add(line);
-                        if (data)
-                        {
-                            if (line == ".") { data = false; writer.WriteLine("250 ok"); }
-                            continue;
-                        }
-                        string upper = line.ToUpperInvariant();
-                        if (upper.StartsWith("EHLO")) { writer.WriteLine("250-test"); writer.WriteLine("250 AUTH LOGIN"); }
-                        else if (upper.StartsWith("AUTH LOGIN"))
-                        {
-                            string[] parts = line.Split(' ');
-                            string user;
-                            if (parts.Length > 2) user = parts[2];
-                            else { writer.WriteLine("334 VXNlcm5hbWU6"); user = reader.ReadLine(); }
-                            add("USER=" + decode(user));
-                            writer.WriteLine("334 UGFzc3dvcmQ6");
-                            add("PASS=" + decode(reader.ReadLine()));
-                            writer.WriteLine("235 ok");
-                        }
-                        else if (upper.StartsWith("DATA")) { data = true; writer.WriteLine("354 go"); }
-                        else if (upper.StartsWith("QUIT")) { writer.WriteLine("221 bye"); break; }
-                        else writer.WriteLine("250 ok");
-                    }
-                }
+                MailNotifier.sendTest(settingsFor(server, SmtpSecurity.StartTls, true));
+                assertDelivered(server);
+                CollectionAssert.Contains(server.conversation(), "STARTTLS");
+                Assert.IsNull(ServicePointManager.ServerCertificateValidationCallback, "the process-wide callback must be put back");
             }
+        }
 
-            private void add(string line)
+        [TestMethod]
+        public void Send_StartTls_RejectsUntrustedCertificateByDefault()
+        {
+            using (FakeSmtpServer server = new FakeSmtpServer(SmtpSecurity.StartTls))
             {
-                lock (lines) lines.Add(line);
-            }
-
-            private static string decode(string base64)
-            {
-                return Encoding.UTF8.GetString(Convert.FromBase64String(base64));
-            }
-
-            public void Dispose()
-            {
-                listener.Stop();
+                SmtpException error = Assert.ThrowsException<SmtpException>(() => MailNotifier.sendTest(settingsFor(server, SmtpSecurity.StartTls, false)));
+                StringAssert.Contains(error.Message, "güvenilmeyen sertifikayı kabul et");
+                Assert.IsFalse(server.conversation().Any(l => l.StartsWith("USER=")), "no credentials may be sent over an untrusted connection");
             }
         }
     }

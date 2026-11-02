@@ -11,6 +11,10 @@ using System.Xml.Serialization;
 
 namespace YedekAl
 {
+    // None: plain text. StartTls: connect in plain text, then upgrade (usually port 587).
+    // SslTls: TLS from the first byte, also called implicit TLS or SMTPS (usually port 465).
+    public enum SmtpSecurity { None, StartTls, SslTls }
+
     // Machine-wide settings: the backup profiles plus what is shared by all of them (schedule, shutdown, e-mail).
     // Kept in ProgramData (not in user.config) so the scheduled task, running as SYSTEM, sees the same settings.
     public class Settings
@@ -27,7 +31,7 @@ namespace YedekAl
         public bool notifyOnSuccess { get; set; }
         public string smtpHost { get; set; } = "";
         public int smtpPort { get; set; } = 587;
-        public bool smtpSsl { get; set; } = true;
+        public SmtpSecurity smtpSecurity { get; set; } = SmtpSecurity.StartTls;
         // For servers with a self-signed or otherwise untrusted certificate; the connection stays encrypted.
         public bool smtpTrustAnyCertificate { get; set; }
         public string smtpUser { get; set; } = "";
@@ -75,6 +79,14 @@ namespace YedekAl
             }
             migrated = document.Root.Element("profiles") == null;
             if (migrated) settings.adoptLegacyProfile(readLegacyProfile(document));
+
+            // Before the security choice there was only a STARTTLS on/off flag.
+            XElement oldSslFlag = document.Root.Element("smtpSsl");
+            if (oldSslFlag != null && document.Root.Element("smtpSecurity") == null)
+            {
+                settings.smtpSecurity = oldSslFlag.Value == "true" ? SmtpSecurity.StartTls : SmtpSecurity.None;
+                migrated = true;
+            }
             return settings;
         }
 
@@ -143,8 +155,9 @@ namespace YedekAl
             List<string> errors = new List<string>();
             if (string.IsNullOrWhiteSpace(smtpHost)) errors.Add("E-posta sunucusu boş olamaz.");
             if (smtpPort < 1 || smtpPort > 65535) errors.Add("E-posta sunucusu bağlantı noktası geçersiz.");
-            // System.Net.Mail only does STARTTLS; implicit TLS on 465 would hang until the timeout.
-            if (smtpPort == 465) errors.Add("465 numaralı bağlantı noktası (SSL) desteklenmiyor; 587 ve güvenli bağlantı (STARTTLS) kullanın.");
+            // A STARTTLS client talking to an SSL/TLS port just waits for a greeting that never comes.
+            if (smtpPort == 465 && smtpSecurity != SmtpSecurity.SslTls)
+                errors.Add("465 numaralı bağlantı noktası SSL/TLS bağlantı ister; bağlantı güvenliğini SSL/TLS seçin.");
             if (!isMailAddress(mailFrom)) errors.Add("Gönderen adresi geçersiz.");
             List<string> recipients = MailNotifier.splitRecipients(mailTo);
             if (recipients.Count == 0) errors.Add("En az bir alıcı adresi girilmelidir.");

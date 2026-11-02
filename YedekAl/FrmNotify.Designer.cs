@@ -32,7 +32,8 @@
             this.txtSmtpHost = new System.Windows.Forms.TextBox();
             this.lblSmtpPort = new System.Windows.Forms.Label();
             this.numSmtpPort = new System.Windows.Forms.NumericUpDown();
-            this.chkSmtpSsl = new System.Windows.Forms.CheckBox();
+            this.lblSmtpSecurity = new System.Windows.Forms.Label();
+            this.cboSmtpSecurity = new System.Windows.Forms.ComboBox();
             this.chkTrustAnyCertificate = new System.Windows.Forms.CheckBox();
             this.lblSmtpUser = new System.Windows.Forms.Label();
             this.txtSmtpUser = new System.Windows.Forms.TextBox();
@@ -98,24 +99,31 @@
             0,
             0});
             //
-            // chkSmtpSsl
+            // lblSmtpSecurity
             //
-            this.chkSmtpSsl.AutoSize = true;
-            this.chkSmtpSsl.Location = new System.Drawing.Point(130, 38);
-            this.chkSmtpSsl.Name = "chkSmtpSsl";
-            this.chkSmtpSsl.Size = new System.Drawing.Size(170, 17);
-            this.chkSmtpSsl.TabIndex = 4;
-            this.chkSmtpSsl.Text = "&Güvenli bağlantı (STARTTLS)";
-            this.chkSmtpSsl.UseVisualStyleBackColor = true;
-            this.chkSmtpSsl.CheckedChanged += new System.EventHandler(this.chkSmtpSsl_CheckedChanged);
+            this.lblSmtpSecurity.AutoSize = true;
+            this.lblSmtpSecurity.Location = new System.Drawing.Point(12, 41);
+            this.lblSmtpSecurity.Name = "lblSmtpSecurity";
+            this.lblSmtpSecurity.Size = new System.Drawing.Size(98, 13);
+            this.lblSmtpSecurity.TabIndex = 4;
+            this.lblSmtpSecurity.Text = "Bağlantı &güvenliği:";
+            // 
+            // cboSmtpSecurity
+            // 
+            this.cboSmtpSecurity.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.cboSmtpSecurity.Location = new System.Drawing.Point(130, 38);
+            this.cboSmtpSecurity.Name = "cboSmtpSecurity";
+            this.cboSmtpSecurity.Size = new System.Drawing.Size(200, 21);
+            this.cboSmtpSecurity.TabIndex = 5;
+            this.cboSmtpSecurity.SelectedIndexChanged += new System.EventHandler(this.cboSmtpSecurity_SelectedIndexChanged);
             // 
             // chkTrustAnyCertificate
             // 
             this.chkTrustAnyCertificate.AutoSize = true;
-            this.chkTrustAnyCertificate.Location = new System.Drawing.Point(130, 60);
+            this.chkTrustAnyCertificate.Location = new System.Drawing.Point(130, 63);
             this.chkTrustAnyCertificate.Name = "chkTrustAnyCertificate";
             this.chkTrustAnyCertificate.Size = new System.Drawing.Size(290, 17);
-            this.chkTrustAnyCertificate.TabIndex = 5;
+            this.chkTrustAnyCertificate.TabIndex = 6;
             this.chkTrustAnyCertificate.Text = "Güvenilmeyen sunucu sertifikasını da kabul et (önerilmez)";
             this.chkTrustAnyCertificate.UseVisualStyleBackColor = true;
             //
@@ -125,7 +133,7 @@
             this.lblSmtpUser.Location = new System.Drawing.Point(12, 89);
             this.lblSmtpUser.Name = "lblSmtpUser";
             this.lblSmtpUser.Size = new System.Drawing.Size(67, 13);
-            this.lblSmtpUser.TabIndex = 6;
+            this.lblSmtpUser.TabIndex = 7;
             this.lblSmtpUser.Text = "&Kullanıcı adı:";
             //
             // txtSmtpUser
@@ -133,7 +141,7 @@
             this.txtSmtpUser.Location = new System.Drawing.Point(130, 86);
             this.txtSmtpUser.Name = "txtSmtpUser";
             this.txtSmtpUser.Size = new System.Drawing.Size(302, 20);
-            this.txtSmtpUser.TabIndex = 7;
+            this.txtSmtpUser.TabIndex = 8;
             //
             // lblSmtpPassword
             //
@@ -141,7 +149,7 @@
             this.lblSmtpPassword.Location = new System.Drawing.Point(12, 115);
             this.lblSmtpPassword.Name = "lblSmtpPassword";
             this.lblSmtpPassword.Size = new System.Drawing.Size(40, 13);
-            this.lblSmtpPassword.TabIndex = 8;
+            this.lblSmtpPassword.TabIndex = 9;
             this.lblSmtpPassword.Text = "&Parola:";
             //
             // txtSmtpPassword
@@ -149,7 +157,7 @@
             this.txtSmtpPassword.Location = new System.Drawing.Point(130, 112);
             this.txtSmtpPassword.Name = "txtSmtpPassword";
             this.txtSmtpPassword.Size = new System.Drawing.Size(302, 20);
-            this.txtSmtpPassword.TabIndex = 9;
+            this.txtSmtpPassword.TabIndex = 10;
             this.txtSmtpPassword.UseSystemPasswordChar = true;
             //
             // lblPasswordNote
@@ -159,7 +167,7 @@
             this.lblPasswordNote.Location = new System.Drawing.Point(127, 135);
             this.lblPasswordNote.Name = "lblPasswordNote";
             this.lblPasswordNote.Size = new System.Drawing.Size(200, 13);
-            this.lblPasswordNote.TabIndex = 10;
+            this.lblPasswordNote.TabIndex = 11;
             this.lblPasswordNote.Text = "Boş bırakılırsa kayıtlı parola korunur.";
             //
             // lblMailFrom
@@ -168,7 +176,7 @@
             this.lblMailFrom.Location = new System.Drawing.Point(12, 159);
             this.lblMailFrom.Name = "lblMailFrom";
             this.lblMailFrom.Size = new System.Drawing.Size(53, 13);
-            this.lblMailFrom.TabIndex = 11;
+            this.lblMailFrom.TabIndex = 12;
             this.lblMailFrom.Text = "Gö&nderen:";
             //
             // txtMailFrom
@@ -176,7 +184,7 @@
             this.txtMailFrom.Location = new System.Drawing.Point(130, 156);
             this.txtMailFrom.Name = "txtMailFrom";
             this.txtMailFrom.Size = new System.Drawing.Size(302, 20);
-            this.txtMailFrom.TabIndex = 12;
+            this.txtMailFrom.TabIndex = 13;
             //
             // lblMailTo
             //
@@ -184,7 +192,7 @@
             this.lblMailTo.Location = new System.Drawing.Point(12, 185);
             this.lblMailTo.Name = "lblMailTo";
             this.lblMailTo.Size = new System.Drawing.Size(47, 13);
-            this.lblMailTo.TabIndex = 13;
+            this.lblMailTo.TabIndex = 14;
             this.lblMailTo.Text = "&Alıcılar:";
             //
             // txtMailTo
@@ -192,7 +200,7 @@
             this.txtMailTo.Location = new System.Drawing.Point(130, 182);
             this.txtMailTo.Name = "txtMailTo";
             this.txtMailTo.Size = new System.Drawing.Size(302, 20);
-            this.txtMailTo.TabIndex = 14;
+            this.txtMailTo.TabIndex = 15;
             //
             // lblMailToHint
             //
@@ -201,7 +209,7 @@
             this.lblMailToHint.Location = new System.Drawing.Point(127, 205);
             this.lblMailToHint.Name = "lblMailToHint";
             this.lblMailToHint.Size = new System.Drawing.Size(190, 13);
-            this.lblMailToHint.TabIndex = 15;
+            this.lblMailToHint.TabIndex = 16;
             this.lblMailToHint.Text = "Birden fazla adresi virgülle ayırın.";
             //
             // chkNotifySuccess
@@ -210,7 +218,7 @@
             this.chkNotifySuccess.Location = new System.Drawing.Point(15, 232);
             this.chkNotifySuccess.Name = "chkNotifySuccess";
             this.chkNotifySuccess.Size = new System.Drawing.Size(220, 17);
-            this.chkNotifySuccess.TabIndex = 16;
+            this.chkNotifySuccess.TabIndex = 17;
             this.chkNotifySuccess.Text = "&Başarılı yedeklerde de e-posta gönder";
             this.chkNotifySuccess.UseVisualStyleBackColor = true;
             //
@@ -219,7 +227,7 @@
             this.cmdTest.Location = new System.Drawing.Point(12, 284);
             this.cmdTest.Name = "cmdTest";
             this.cmdTest.Size = new System.Drawing.Size(150, 25);
-            this.cmdTest.TabIndex = 17;
+            this.cmdTest.TabIndex = 18;
             this.cmdTest.Text = "&Test e-postası gönder";
             this.cmdTest.UseVisualStyleBackColor = true;
             this.cmdTest.Click += new System.EventHandler(this.cmdTest_Click);
@@ -229,7 +237,7 @@
             this.cmdOK.Location = new System.Drawing.Point(266, 284);
             this.cmdOK.Name = "cmdOK";
             this.cmdOK.Size = new System.Drawing.Size(80, 25);
-            this.cmdOK.TabIndex = 18;
+            this.cmdOK.TabIndex = 19;
             this.cmdOK.Text = "Tamam";
             this.cmdOK.UseVisualStyleBackColor = true;
             this.cmdOK.Click += new System.EventHandler(this.cmdOK_Click);
@@ -240,7 +248,7 @@
             this.cmdCancel.Location = new System.Drawing.Point(352, 284);
             this.cmdCancel.Name = "cmdCancel";
             this.cmdCancel.Size = new System.Drawing.Size(80, 25);
-            this.cmdCancel.TabIndex = 19;
+            this.cmdCancel.TabIndex = 20;
             this.cmdCancel.Text = "Vazgeç";
             this.cmdCancel.UseVisualStyleBackColor = true;
             //
@@ -255,7 +263,8 @@
             this.Controls.Add(this.txtSmtpHost);
             this.Controls.Add(this.lblSmtpPort);
             this.Controls.Add(this.numSmtpPort);
-            this.Controls.Add(this.chkSmtpSsl);
+            this.Controls.Add(this.lblSmtpSecurity);
+            this.Controls.Add(this.cboSmtpSecurity);
             this.Controls.Add(this.chkTrustAnyCertificate);
             this.Controls.Add(this.lblSmtpUser);
             this.Controls.Add(this.txtSmtpUser);
@@ -292,7 +301,8 @@
         private System.Windows.Forms.TextBox txtSmtpHost;
         private System.Windows.Forms.Label lblSmtpPort;
         private System.Windows.Forms.NumericUpDown numSmtpPort;
-        private System.Windows.Forms.CheckBox chkSmtpSsl;
+        private System.Windows.Forms.Label lblSmtpSecurity;
+        private System.Windows.Forms.ComboBox cboSmtpSecurity;
         private System.Windows.Forms.CheckBox chkTrustAnyCertificate;
         private System.Windows.Forms.Label lblSmtpUser;
         private System.Windows.Forms.TextBox txtSmtpUser;

@@ -140,9 +140,30 @@ namespace YedekAl.Tests
             settings.mailFrom = "kötü adres";
             settings.mailTo = "b@ornek.com, yanlis";
             var errors = settings.validateMail();
-            Assert.IsTrue(errors.Any(e => e.Contains("465")));
+            Assert.IsTrue(errors.Any(e => e.Contains("465") && e.Contains("SSL/TLS")), "465 with STARTTLS");
             Assert.IsTrue(errors.Any(e => e.Contains("Gönderen")));
             Assert.IsTrue(errors.Any(e => e.Contains("yanlis")));
+
+            settings.smtpSecurity = SmtpSecurity.SslTls;
+            Assert.IsFalse(settings.validateMail().Any(e => e.Contains("465")), "465 is right for SSL/TLS");
+        }
+
+        [TestMethod]
+        public void OldStartTlsFlag_IsMigrated()
+        {
+            foreach (bool oldFlag in new[] { true, false })
+            {
+                XDocument document = XDocument.Parse("<Settings><profiles /><smtpSsl>" + (oldFlag ? "true" : "false") + "</smtpSsl></Settings>");
+                bool migrated;
+                Settings settings = Settings.fromXml(document, out migrated);
+                Assert.IsTrue(migrated, "the file should be rewritten with the new field");
+                Assert.AreEqual(oldFlag ? SmtpSecurity.StartTls : SmtpSecurity.None, settings.smtpSecurity);
+            }
+
+            bool again;
+            Settings current = Settings.fromXml(XDocument.Parse("<Settings><profiles /><smtpSecurity>SslTls</smtpSecurity></Settings>"), out again);
+            Assert.IsFalse(again);
+            Assert.AreEqual(SmtpSecurity.SslTls, current.smtpSecurity);
         }
 
         [TestMethod]

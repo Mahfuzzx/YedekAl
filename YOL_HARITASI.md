@@ -10,8 +10,8 @@
 
 ## 2. aşama
 - [x] Arşiv şifreleme (7z / RAR; dosya adları da gizlenir, parola DPAPI ile saklanır)
-- [x] Hata bildirimi (e-posta; SMTP + STARTTLS, istenirse başarılı yedeklerde de; güvenilmeyen
-  sunucu sertifikası isteğe bağlı kabul edilebilir)
+- [x] Hata bildirimi (e-posta; bağlantı güvenliği Yok / STARTTLS / SSL/TLS, istenirse başarılı
+  yedeklerde de; güvenilmeyen sunucu sertifikası isteğe bağlı kabul edilebilir)
 - [x] Birden fazla profil (tek zamanlanmış görev dahil profilleri sırayla yedekler, tek özet e-posta)
 - [x] Geri yükleme (önce doğrula ve yanına aç, sonra hizmeti durdurup yer değiştir; hata olursa eski veritabanı geri gelir)
 
@@ -30,7 +30,7 @@ Tasarım ön çalışması: [docs/uzak-hedef-tasarimi.md](docs/uzak-hedef-tasari
 ## Teknik borç
 - [x] ZIP doğrulaması CRC'leri artık arşivin merkezi dizininden okuyor (ZIP64 dahil); sonradan
   açılan her ZIP yedeği tam olarak doğrulanabiliyor.
-- [x] Kalıcı test projesi: `YedekAl.Tests` (MSTest, 38 test). Visual Studio'da Test Gezgini'nden
+- [x] Kalıcı test projesi: `YedekAl.Tests` (MSTest, 43 test). Visual Studio'da Test Gezgini'nden
   ya da komut satırından çalıştırılır:
   `MSBuild YedekAl.sln -restore` ardından
   `vstest.console.exe YedekAl.Tests\bin\Debug\net481\YedekAl.Tests.dll`.
