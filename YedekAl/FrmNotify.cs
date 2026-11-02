@@ -18,11 +18,24 @@ namespace YedekAl
             txtSmtpHost.Text = target.smtpHost;
             numSmtpPort.Value = Math.Min(numSmtpPort.Maximum, Math.Max(numSmtpPort.Minimum, target.smtpPort));
             chkSmtpSsl.Checked = target.smtpSsl;
+            chkTrustAnyCertificate.Checked = target.smtpTrustAnyCertificate;
             txtSmtpUser.Text = target.smtpUser;
             lblPasswordNote.Visible = target.protectedSmtpPassword.Length > 0;
             txtMailFrom.Text = target.mailFrom;
             txtMailTo.Text = target.mailTo;
             chkNotifySuccess.Checked = target.notifyOnSuccess;
+            updateControls();
+        }
+
+        private void chkSmtpSsl_CheckedChanged(object sender, EventArgs e)
+        {
+            updateControls();
+        }
+
+        // The certificate is only checked on an encrypted connection.
+        private void updateControls()
+        {
+            chkTrustAnyCertificate.Enabled = chkSmtpSsl.Checked;
         }
 
         private void cmdOK_Click(object sender, EventArgs e)
@@ -32,6 +45,7 @@ namespace YedekAl
             target.smtpHost = edited.smtpHost;
             target.smtpPort = edited.smtpPort;
             target.smtpSsl = edited.smtpSsl;
+            target.smtpTrustAnyCertificate = edited.smtpTrustAnyCertificate;
             target.smtpUser = edited.smtpUser;
             target.protectedSmtpPassword = edited.protectedSmtpPassword;
             target.mailFrom = edited.mailFrom;
@@ -76,6 +90,7 @@ namespace YedekAl
             edited.smtpHost = txtSmtpHost.Text.Trim();
             edited.smtpPort = (int)numSmtpPort.Value;
             edited.smtpSsl = chkSmtpSsl.Checked;
+            edited.smtpTrustAnyCertificate = chkSmtpSsl.Checked && chkTrustAnyCertificate.Checked;
             edited.smtpUser = txtSmtpUser.Text.Trim();
             // An empty password box keeps the stored password; no user name means no password.
             if (edited.smtpUser.Length == 0) edited.protectedSmtpPassword = "";

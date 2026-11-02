@@ -28,6 +28,8 @@ namespace YedekAl
         public string smtpHost { get; set; } = "";
         public int smtpPort { get; set; } = 587;
         public bool smtpSsl { get; set; } = true;
+        // For servers with a self-signed or otherwise untrusted certificate; the connection stays encrypted.
+        public bool smtpTrustAnyCertificate { get; set; }
         public string smtpUser { get; set; } = "";
         public string protectedSmtpPassword { get; set; } = "";
         public string mailFrom { get; set; } = "";
@@ -35,42 +37,59 @@ namespace YedekAl
 
         public static Settings load()
         {
+            return loadFrom(AppPaths.settingsFile);
+        }
+
+        public void save()
+        {
+            saveTo(AppPaths.settingsFile);
+        }
+
+        internal static Settings loadFrom(string file)
+        {
             Settings settings;
-            if (File.Exists(AppPaths.settingsFile))
+            if (File.Exists(file))
             {
-                XDocument document = XDocument.Load(AppPaths.settingsFile);
-                using (XmlReader reader = document.CreateReader())
-                {
-                    settings = (Settings)serializer.Deserialize(reader);
-                }
-                if (document.Root.Element("profiles") == null)
-                {
-                    settings.adoptLegacyProfile(readLegacyProfile(document));
-                    settings.save();
-                }
+                bool migrated;
+                settings = fromXml(XDocument.Load(file), out migrated);
+                if (migrated) settings.saveTo(file);
             }
             else
             {
                 settings = new Settings();
                 settings.autoShutdown = migrateFromUserSettings(out Profile profile);
                 settings.adoptLegacyProfile(profile);
-                settings.save();
+                settings.saveTo(file);
             }
             if (settings.profiles.Count == 0) settings.profiles.Add(new Profile());
             return settings;
         }
 
-        public void save()
+        // Files written before profiles existed are converted; migrated tells the caller to write the new format back.
+        internal static Settings fromXml(XDocument document, out bool migrated)
         {
-            Directory.CreateDirectory(AppPaths.dataDir);
-            string tempFile = AppPaths.settingsFile + ".tmp";
+            Settings settings;
+            using (XmlReader reader = document.CreateReader())
+            {
+                settings = (Settings)serializer.Deserialize(reader);
+            }
+            migrated = document.Root.Element("profiles") == null;
+            if (migrated) settings.adoptLegacyProfile(readLegacyProfile(document));
+            return settings;
+        }
+
+        internal void saveTo(string file)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(file));
+            string tempFile = file + ".tmp";
             using (FileStream stream = File.Create(tempFile))
             {
                 serializer.Serialize(stream, this);
             }
-            if (File.Exists(AppPaths.settingsFile)) File.Replace(tempFile, AppPaths.settingsFile, null);
-            else File.Move(tempFile, AppPaths.settingsFile);
-            restrictAccess(AppPaths.settingsFile);
+            if (File.Exists(file)) File.Replace(tempFile, file, null);
+            else File.Move(tempFile, file);
+            // YedekAl always runs elevated; a non-admin caller (only the tests) would lock itself out of the file.
+            if (SystemInfo.isAdministrator()) restrictAccess(file);
         }
 
         public Settings clone()

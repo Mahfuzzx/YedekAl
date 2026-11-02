@@ -39,12 +39,14 @@ namespace YedekAl
     {
         private static readonly CultureInfo invariant = CultureInfo.InvariantCulture;
 
-        public static List<HistoryEntry> load()
+        // file defaults to the history file in ProgramData; the tests pass their own.
+        public static List<HistoryEntry> load(string file = null)
         {
+            file = file ?? AppPaths.historyFile;
             List<HistoryEntry> entries = new List<HistoryEntry>();
-            if (!File.Exists(AppPaths.historyFile)) return entries;
+            if (!File.Exists(file)) return entries;
 
-            using (FileStream stream = new FileStream(AppPaths.historyFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            using (FileStream stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
             using (StreamReader reader = new StreamReader(stream, Encoding.UTF8))
             {
                 string line;
@@ -75,22 +77,24 @@ namespace YedekAl
             return entries;
         }
 
-        public static void append(HistoryEntry entry)
+        public static void append(HistoryEntry entry, string file = null)
         {
-            Directory.CreateDirectory(AppPaths.dataDir);
-            File.AppendAllText(AppPaths.historyFile, format(entry) + Environment.NewLine, new UTF8Encoding(false));
+            file = file ?? AppPaths.historyFile;
+            Directory.CreateDirectory(Path.GetDirectoryName(file));
+            File.AppendAllText(file, format(entry) + Environment.NewLine, new UTF8Encoding(false));
         }
 
-        public static void save(IEnumerable<HistoryEntry> entries)
+        public static void save(IEnumerable<HistoryEntry> entries, string file = null)
         {
-            string tempFile = AppPaths.historyFile + ".tmp";
+            file = file ?? AppPaths.historyFile;
+            string tempFile = file + ".tmp";
             using (StreamWriter writer = new StreamWriter(tempFile, false, new UTF8Encoding(false)))
             {
                 foreach (HistoryEntry entry in entries)
                     writer.WriteLine(format(entry));
             }
-            if (File.Exists(AppPaths.historyFile)) File.Replace(tempFile, AppPaths.historyFile, null);
-            else File.Move(tempFile, AppPaths.historyFile);
+            if (File.Exists(file)) File.Replace(tempFile, file, null);
+            else File.Move(tempFile, file);
         }
 
         private static string format(HistoryEntry entry)

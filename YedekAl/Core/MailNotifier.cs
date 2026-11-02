@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Net;
 using System.Net.Mail;
+using System.Net.Security;
 using System.Text;
 
 namespace YedekAl
@@ -11,6 +12,7 @@ namespace YedekAl
     internal static class MailNotifier
     {
         private const int timeoutMilliseconds = 30000;
+        private static readonly object certificateLock = new object();
 
         public static List<string> splitRecipients(string value)
         {
@@ -99,13 +101,34 @@ namespace YedekAl
                         client.Credentials = new NetworkCredential(settings.smtpUser.Trim(), settings.getSmtpPassword());
                     try
                     {
-                        client.Send(message);
+                        if (settings.smtpSsl && settings.smtpTrustAnyCertificate) sendTrustingAnyCertificate(client, message);
+                        else client.Send(message);
                     }
                     catch (SmtpException ex) when (ex.InnerException != null)
                     {
                         // The inner exception usually says what went wrong (DNS, refused connection, TLS).
                         throw new SmtpException(ex.Message + " " + ex.InnerException.Message, ex);
                     }
+                }
+            }
+        }
+
+        // SmtpClient has no per-client certificate callback on .NET Framework, only the process-wide one in
+        // ServicePointManager. It is swapped in for this one send and put back afterwards; the lock keeps two
+        // sends from overlapping. Nothing else in YedekAl makes TLS connections.
+        private static void sendTrustingAnyCertificate(SmtpClient client, MailMessage message)
+        {
+            lock (certificateLock)
+            {
+                RemoteCertificateValidationCallback previous = ServicePointManager.ServerCertificateValidationCallback;
+                ServicePointManager.ServerCertificateValidationCallback = (sender, certificate, chain, errors) => true;
+                try
+                {
+                    client.Send(message);
+                }
+                finally
+                {
+                    ServicePointManager.ServerCertificateValidationCallback = previous;
                 }
             }
         }
