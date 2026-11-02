@@ -1,170 +1,240 @@
-using System;
+ï»¿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.ServiceProcess;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace YedekAl
 {
     public partial class FrmMain : Form
     {
-        public string sStatus = "";
-        private bool backUpMode = false;
-        private string srcPath = "";
-        private string bckUpPath = "";
-        private readonly ServicesHelper servicesHelper;
-        private readonly Settings settings = new Settings();
+        private Settings settings;
+        private CancellationTokenSource cancellation;
+        private bool busy;
 
-        public FrmMain()
+        public FrmMain(Settings settings)
         {
             InitializeComponent();
-            servicesHelper = new ServicesHelper(this);
+            this.settings = settings;
+            refreshServiceStatus();
+            loadHistory();
         }
 
         private void cmdSettings_Click(object sender, EventArgs e)
         {
-            using (FrmSettings frmIcon = new FrmSettings(settings))
+            using (FrmSettings frmSettings = new FrmSettings(settings))
             {
-                frmIcon.ShowDialog(this);
+                if (frmSettings.ShowDialog(this) == DialogResult.OK)
+                {
+                    settings = frmSettings.settings;
+                    refreshServiceStatus();
+                }
             }
         }
 
-        private void shellAndWait(string program_name)
+        private void cmdLogs_Click(object sender, EventArgs e)
         {
-            int tLoc = program_name.IndexOf(' ');
-            string args = program_name.Substring(tLoc + 1);
-            Process process = Process.Start(program_name.Substring(0, tLoc), args);
-            // Wait for the program to finish. 
-            process.WaitForExit();
+            Directory.CreateDirectory(AppPaths.logDir);
+            Process.Start("explorer.exe", "\"" + AppPaths.logDir + "\"");
         }
 
         private void tmrSeek_Tick(object sender, EventArgs e)
         {
-            sStatus = servicesHelper.serviceStatus("", settings.serviceName);
-            imgOn.Visible = sStatus == "Running";
-            imgOff.Visible = sStatus != "Running";
-            lblServiceStatus.Text = (sStatus == "Running") ? "Çalýþýyor" : (sStatus == "Stopped" || sStatus == "Paused") ? "Çalýþmýyor" : "Meþgul/Yok";
-            if (!backUpMode)
+            refreshServiceStatus();
+        }
+
+        private void refreshServiceStatus()
+        {
+            ServiceControllerStatus? status = ServiceManager.getStatus(settings.serviceName);
+            bool running = status == ServiceControllerStatus.Running;
+            imgOn.Visible = running;
+            imgOff.Visible = !running;
+            lblServiceStatus.Text = ServiceManager.describe(status);
+            if (!busy)
             {
-                cmdStart.Enabled = sStatus == "Stopped" || sStatus == "Paused";
-                cmdStop.Enabled = sStatus == "Running";
+                cmdStart.Enabled = status == ServiceControllerStatus.Stopped || status == ServiceControllerStatus.Paused;
+                cmdStop.Enabled = running || status == ServiceControllerStatus.Paused;
             }
         }
 
-        private void cmdStop_Click(object sender, EventArgs e)
+        private async void cmdStop_Click(object sender, EventArgs e)
         {
-            servicesHelper.serviceStop("", settings.serviceName);
+            string name = settings.serviceName;
+            TimeSpan timeout = TimeSpan.FromSeconds(settings.serviceTimeoutSeconds);
+            await runServiceAction("Hizmet durduruluyor: " + name, "Hizmet durduruldu.", () => ServiceManager.stop(name, timeout));
         }
 
-        private void cmdStart_Click(object sender, EventArgs e)
+        private async void cmdStart_Click(object sender, EventArgs e)
         {
-            servicesHelper.serviceStart("", settings.serviceName);
+            string name = settings.serviceName;
+            TimeSpan timeout = TimeSpan.FromSeconds(settings.serviceTimeoutSeconds);
+            await runServiceAction("Hizmet baÅŸlatÄ±lÄ±yor: " + name, "Hizmet baÅŸlatÄ±ldÄ±.", () => ServiceManager.start(name, timeout));
         }
 
-        private void backupModeSwitch(bool bckpMode)
+        private async Task runServiceAction(string startMessage, string doneMessage, Action action)
         {
-            cmdBackup.Enabled = !bckpMode;
-            cmdSettings.Enabled = !bckpMode;
-            cmdStart.Enabled = !bckpMode;
-            cmdStop.Enabled = !bckpMode;
-            backUpMode = bckpMode;
-        }
-
-        private string replaceVars(string src)
-        {
-            return src.Replace("%y", DateTime.Now.Year.ToString())
-                .Replace("%1", "\"" + srcPath + "\"")
-                .Replace("%2", "\"" + bckUpPath + "\"\\")
-                .Replace("%a", DateTime.Now.Month.ToString())
-                .Replace("%g", DateTime.Now.Day.ToString())
-                .Replace("%s", DateTime.Now.Hour.ToString())
-                .Replace("%d", DateTime.Now.Minute.ToString())
-                .Replace("%n", DateTime.Now.Second.ToString());
-        }
-
-        private void cmdBackup_Click(object sender, EventArgs e)
-        {
-            log("******** Yedekleme baþladý! ********\r\n");
-            backupModeSwitch(true);
-            srcPath = settings.dbPath;
-            bckUpPath = settings.backupPath;
-            string copyDest = bckUpPath + "\\" + Guid.NewGuid().ToString();
-            if (!servicesHelper.serviceStop("", settings.serviceName))
+            setBusy(true, false);
+            logNow(startMessage);
+            try
             {
-                log("******** Yedekleme durdu! ********\r\n");
-                backupModeSwitch(false);
+                await Task.Run(action);
+                logNow(doneMessage);
+            }
+            catch (Exception ex)
+            {
+                logNow("HATA: " + ex.Message);
+            }
+            finally
+            {
+                setBusy(false, false);
+            }
+        }
+
+        private async void cmdBackup_Click(object sender, EventArgs e)
+        {
+            setBusy(true, true);
+            prgBackup.Value = 0;
+            cancellation = new CancellationTokenSource();
+            CancellationToken token = cancellation.Token;
+            Settings current = settings;
+            Progress<string> logSink = new Progress<string>(log);
+            Progress<int> percent = new Progress<int>(value => prgBackup.Value = Math.Max(0, Math.Min(100, value)));
+
+            BackupResult result = null;
+            try
+            {
+                result = await Task.Run(() =>
+                {
+                    using (BackupLogger logger = new BackupLogger(logSink))
+                    {
+                        return new BackupEngine(current, logger, percent).run(token);
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                logNow("HATA: " + ex.Message);
+            }
+            finally
+            {
+                setBusy(false, false);
+                cancellation.Dispose();
+                cancellation = null;
+                loadHistory();
+            }
+
+            if (result != null && result.success && current.autoShutdown) scheduleShutdown();
+        }
+
+        private void cmdCancel_Click(object sender, EventArgs e)
+        {
+            if (cancellation == null) return;
+            cancellation.Cancel();
+            cmdCancel.Enabled = false;
+            logNow("Ä°ptal ediliyor...");
+        }
+
+        private void scheduleShutdown()
+        {
+            try
+            {
+                SystemShutdown.schedule(60, SystemShutdown.defaultMessage);
+            }
+            catch (Exception ex)
+            {
+                logNow("HATA: Bilgisayar kapatÄ±lamadÄ±: " + ex.Message);
                 return;
             }
-            if ((settings.copyFirst && settings.compress) || !settings.compress)
+            logNow("Bilgisayar 60 saniye iÃ§inde kapatÄ±lacak.");
+            DialogResult answer = MessageBox.Show(this,
+                "Yedekleme tamamlandÄ±. Bilgisayar 60 saniye iÃ§inde kapatÄ±lacak.\r\n\r\nKapatmayÄ± iptal etmek iÃ§in Ä°ptal dÃ¼ÄŸmesine basÄ±n.",
+                "YedekAl", MessageBoxButtons.OKCancel, MessageBoxIcon.Information);
+            if (answer != DialogResult.Cancel) return;
+            try
             {
-                if (!settings.compress)
-                {
-                    // D:\TEMP\yedek_%y%a%g%s%d%n
-                    copyDest = replaceVars(bckUpPath);
-                }
-                srcPath = copyDest;
-                // xcopy %1 %2 /e /c /y /v
-                string copyCmd = settings.copyCmd
-                    .Replace("%1", "\"" + settings.dbPath + "\"")
-                    .Replace("%2", "\"" + copyDest + "\"");
-                log("Dosyalar kopyalanýyor... ");
-                try
-                {
-                    System.IO.Directory.CreateDirectory(copyDest);
-                    shellAndWait(copyCmd);
-                }
-                catch (Exception ex)
-                {
-                    log("HATA: " + ex.Message + "!\r\n");
-                    log("******** Yedekleme durdu! ********\r\n");
-                    backupModeSwitch(false);
-                    return;
-                }
-                log("TAMAM!\r\n");
-                servicesHelper.serviceStart("", settings.serviceName);
+                SystemShutdown.abort();
+                logNow("Kapatma iptal edildi.");
             }
-            if (settings.compress)
+            catch (Exception ex)
             {
-                // Rar a -ag -m5 -r -s -y %2yedek_%y%a%g%s%d%n %1
-                string compCmd = replaceVars(settings.compressCmd);
-                log("Dosyalar sýkýþtýrýlýyor... ");
-                try
-                {
-                    shellAndWait(compCmd);
-                }
-                catch (Exception ex)
-                {
-                    log("HATA: " + ex.Message + "!\r\n");
-                    log("******** Yedekleme durdu! ********\r\n");
-                    backupModeSwitch(false);
-                    return;
-                }
-                log("TAMAM!\r\n");
-                if (!settings.copyFirst)
-                {
-                    if (!servicesHelper.serviceStart("", settings.serviceName))
-                    {
-                        log("******** Yedekleme durdu! ********\r\n");
-                        backupModeSwitch(false);
-                        return;
-                    }
-                }
-                else
-                {
-                    log("Önbellek siliniyor... ");
-                    System.IO.Directory.Delete(copyDest, true);
-                    log("TAMAM!\r\n");
-                }
+                logNow("HATA: Kapatma iptal edilemedi: " + ex.Message);
             }
-            log("******** Yedekleme bitti! ********\r\n");
-            backupModeSwitch(false);
-            if (settings.autoShutdown) shellAndWait("shutdown -f -s -t 60 -d p:0:0 -c \"Yedekleme sonu.\"");
         }
 
-        public void log(string line)
+        private void setBusy(bool value, bool backup)
         {
-            txtLog.Text += line;
-            txtLog.Select(txtLog.Text.Length - 1, 0);
-            txtLog.ScrollToCaret();
-            Refresh();
+            busy = value;
+            cmdBackup.Enabled = !value;
+            cmdSettings.Enabled = !value;
+            cmdCancel.Enabled = value && backup;
+            if (value)
+            {
+                cmdStart.Enabled = false;
+                cmdStop.Enabled = false;
+            }
+            else
+            {
+                refreshServiceStatus();
+            }
+        }
+
+        private void FrmMain_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            if (!busy || e.CloseReason == CloseReason.WindowsShutDown) return;
+            e.Cancel = true;
+            MessageBox.Show(this, "Bir iÅŸlem sÃ¼rÃ¼yor. Kapatmadan Ã¶nce bitmesini bekleyin ya da yedeklemeyi iptal edin.", "YedekAl", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+
+        private void loadHistory()
+        {
+            List<HistoryEntry> entries;
+            try
+            {
+                entries = BackupHistory.load();
+            }
+            catch (Exception ex)
+            {
+                logNow("UYARI: Yedek geÃ§miÅŸi okunamadÄ±: " + ex.Message);
+                return;
+            }
+
+            lvHistory.BeginUpdate();
+            lvHistory.Items.Clear();
+            foreach (HistoryEntry entry in entries.OrderByDescending(x => x.start).Take(100))
+            {
+                bool hasFile = entry.status == BackupStatus.Success || entry.status == BackupStatus.Deleted;
+                ListViewItem item = new ListViewItem(entry.start.ToString("dd.MM.yyyy HH:mm", CultureInfo.InvariantCulture));
+                item.SubItems.Add(formatDuration(entry.duration));
+                item.SubItems.Add(entry.size > 0 ? SystemInfo.formatSize(entry.size) : "");
+                item.SubItems.Add(entry.statusText);
+                item.SubItems.Add(hasFile ? Path.GetFileName(entry.path) : entry.message);
+                item.ToolTipText = entry.message.Length > 0 ? entry.message : entry.path;
+                if (entry.status == BackupStatus.Failed) item.ForeColor = Color.Firebrick;
+                else if (entry.status != BackupStatus.Success) item.ForeColor = SystemColors.GrayText;
+                lvHistory.Items.Add(item);
+            }
+            lvHistory.EndUpdate();
+        }
+
+        private static string formatDuration(TimeSpan duration)
+        {
+            return duration.TotalHours >= 1 ? duration.ToString(@"h\:mm\:ss") : duration.ToString(@"m\:ss");
+        }
+
+        private void logNow(string message)
+        {
+            log(DateTime.Now.ToString("HH:mm:ss", CultureInfo.InvariantCulture) + "  " + message);
+        }
+
+        private void log(string line)
+        {
+            txtLog.AppendText(line + "\r\n");
         }
     }
 }
