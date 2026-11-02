@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Security.AccessControl;
-using System.Security.Principal;
 using System.ServiceProcess;
 using System.Threading;
 
@@ -24,7 +22,6 @@ namespace YedekAl
     // Runs one profile's backup end to end. Used by both the UI and the scheduled task (/auto), on a worker thread.
     internal sealed class BackupEngine
     {
-        private const string mutexName = @"Global\YedekAl_Yedekleme";
         private const string tempPrefix = ".yedekal_gecici_";
 
         private readonly Settings settings;
@@ -44,56 +41,18 @@ namespace YedekAl
 
         public BackupResult run(CancellationToken token)
         {
-            Mutex mutex;
-            try
+            using (OperationLock operationLock = OperationLock.tryAcquire())
             {
-                mutex = createMutex();
-            }
-            catch (UnauthorizedAccessException)
-            {
-                return alreadyRunning();
-            }
-
-            using (mutex)
-            {
-                bool owned;
-                try
-                {
-                    owned = mutex.WaitOne(0);
-                }
-                catch (AbandonedMutexException)
-                {
-                    owned = true;
-                }
-                if (!owned) return alreadyRunning();
-
-                try
-                {
-                    return runCore(token);
-                }
-                finally
-                {
-                    mutex.ReleaseMutex();
-                }
+                if (operationLock == null) return alreadyRunning();
+                return runCore(token);
             }
         }
 
         private BackupResult alreadyRunning()
         {
-            const string message = "Başka bir yedekleme zaten çalışıyor.";
-            log.error(message);
-            HistoryEntry entry = new HistoryEntry { start = DateTime.Now, status = BackupStatus.Failed, message = message, profileId = profile.id };
-            return new BackupResult { message = message, profileName = profile.name, entry = entry };
-        }
-
-        // Shared between the elevated UI and the SYSTEM task, so both must be allowed to open it.
-        private static Mutex createMutex()
-        {
-            MutexSecurity security = new MutexSecurity();
-            security.AddAccessRule(new MutexAccessRule(new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null), MutexRights.FullControl, AccessControlType.Allow));
-            security.AddAccessRule(new MutexAccessRule(new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null), MutexRights.FullControl, AccessControlType.Allow));
-            bool createdNew;
-            return new Mutex(false, mutexName, out createdNew, security);
+            log.error(OperationLock.busyMessage);
+            HistoryEntry entry = new HistoryEntry { start = DateTime.Now, status = BackupStatus.Failed, message = OperationLock.busyMessage, profileId = profile.id };
+            return new BackupResult { message = OperationLock.busyMessage, profileName = profile.name, entry = entry };
         }
 
         private BackupResult runCore(CancellationToken token)

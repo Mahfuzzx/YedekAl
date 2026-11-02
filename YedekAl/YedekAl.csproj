@@ -62,6 +62,12 @@
     <Compile Include="FrmGeneral.Designer.cs">
       <DependentUpon>FrmGeneral.cs</DependentUpon>
     </Compile>
+    <Compile Include="FrmRestore.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FrmRestore.Designer.cs">
+      <DependentUpon>FrmRestore.cs</DependentUpon>
+    </Compile>
     <Compile Include="FrmProfile.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -89,6 +95,7 @@
     <Compile Include="Compression\ICompressor.cs" />
     <Compile Include="Compression\RarCompressor.cs" />
     <Compile Include="Compression\SevenZipCompressor.cs" />
+    <Compile Include="Compression\ZipCentralDirectory.cs" />
     <Compile Include="Compression\ZipCompressor.cs" />
     <Compile Include="Core\AppPaths.cs" />
     <Compile Include="Core\BackupEngine.cs" />
@@ -96,7 +103,9 @@
     <Compile Include="Core\BackupLogger.cs" />
     <Compile Include="Core\FileCopier.cs" />
     <Compile Include="Core\MailNotifier.cs" />
+    <Compile Include="Core\OperationLock.cs" />
     <Compile Include="Core\PercentReporter.cs" />
+    <Compile Include="Core\RestoreEngine.cs" />
     <Compile Include="Core\ScheduledTask.cs" />
     <Compile Include="Core\SecretProtector.cs" />
     <Compile Include="Core\ServiceManager.cs" />

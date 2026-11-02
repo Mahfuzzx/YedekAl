@@ -25,6 +25,11 @@ namespace YedekAl
             return "t" + passwordSwitch("-p") + " -bsp1 -bso0 -sccUTF-8 -y -- " + quote(archivePath);
         }
 
+        protected override string extractArguments(string archivePath)
+        {
+            return "x" + passwordSwitch("-p") + " -bsp1 -bso0 -sccUTF-8 -y -- " + quote(archivePath);
+        }
+
         protected override string describeExitCode(int code)
         {
             switch (code)

@@ -26,6 +26,11 @@ namespace YedekAl
             return "t" + passwordSwitch("-p") + " -idc -y -- " + quote(archivePath);
         }
 
+        protected override string extractArguments(string archivePath)
+        {
+            return "x" + passwordSwitch("-p") + " -idc -y -- " + quote(archivePath);
+        }
+
         // rar.exe only prints per-file percentages, so progress is counted by lines that end with "OK".
         protected override Action<string> createProgressParser(int fileCount, IProgress<int> progress)
         {

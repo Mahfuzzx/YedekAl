@@ -29,6 +29,8 @@ namespace YedekAl
 
         protected abstract string compressArguments(SourceTree tree, string archivePath, CompressionStrength strength);
         protected abstract string verifyArguments(string archivePath);
+        // Extracts into the current directory, which run() sets to the destination.
+        protected abstract string extractArguments(string archivePath);
         protected abstract string describeExitCode(int code);
 
         public string checkAvailable()
@@ -45,7 +47,12 @@ namespace YedekAl
 
         public void verify(string archivePath, int expectedFiles, IProgress<int> progress, CancellationToken token)
         {
-            run(verifyArguments(archivePath), createProgressParser(expectedFiles, progress), token);
+            run(verifyArguments(archivePath), createProgressParser(Math.Max(0, expectedFiles), progress), token);
+        }
+
+        public void extract(string archivePath, string destDir, IProgress<int> progress, CancellationToken token)
+        {
+            run(extractArguments(archivePath), createProgressParser(0, progress), token, destDir);
         }
 
         // Default: the tool prints an overall percentage (7-Zip with -bsp1).
@@ -60,7 +67,7 @@ namespace YedekAl
             };
         }
 
-        private void run(string arguments, Action<string> onOutput, CancellationToken token)
+        private void run(string arguments, Action<string> onOutput, CancellationToken token, string workingDirectory = null)
         {
             ProcessStartInfo startInfo = new ProcessStartInfo(exePath, arguments)
             {
@@ -71,7 +78,7 @@ namespace YedekAl
                 RedirectStandardError = true,
                 StandardOutputEncoding = outputEncoding,
                 StandardErrorEncoding = outputEncoding,
-                WorkingDirectory = Path.GetDirectoryName(exePath)
+                WorkingDirectory = workingDirectory ?? Path.GetDirectoryName(exePath)
             };
 
             using (Process process = Process.Start(startInfo))

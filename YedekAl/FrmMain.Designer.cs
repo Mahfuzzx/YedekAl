@@ -48,6 +48,7 @@
             this.imgOn = new System.Windows.Forms.PictureBox();
             this.cmdBackup = new System.Windows.Forms.Button();
             this.cmdBackupAll = new System.Windows.Forms.Button();
+            this.cmdRestore = new System.Windows.Forms.Button();
             this.cmdCancel = new System.Windows.Forms.Button();
             this.prgBackup = new System.Windows.Forms.ProgressBar();
             this.txtLog = new System.Windows.Forms.TextBox();
@@ -286,6 +287,18 @@
             this.lvHistory.TabIndex = 10;
             this.lvHistory.UseCompatibleStateImageBehavior = false;
             this.lvHistory.View = System.Windows.Forms.View.Details;
+            this.lvHistory.SelectedIndexChanged += new System.EventHandler(this.lvHistory_SelectedIndexChanged);
+            //
+            // cmdRestore
+            //
+            this.cmdRestore.Enabled = false;
+            this.cmdRestore.Location = new System.Drawing.Point(388, 387);
+            this.cmdRestore.Name = "cmdRestore";
+            this.cmdRestore.Size = new System.Drawing.Size(120, 22);
+            this.cmdRestore.TabIndex = 11;
+            this.cmdRestore.Text = "&Geri yükle...";
+            this.cmdRestore.UseVisualStyleBackColor = true;
+            this.cmdRestore.Click += new System.EventHandler(this.cmdRestore_Click);
             //
             // colDate
             //
@@ -325,6 +338,7 @@
             this.ClientSize = new System.Drawing.Size(520, 591);
             this.Controls.Add(this.lvHistory);
             this.Controls.Add(this.lblHistory);
+            this.Controls.Add(this.cmdRestore);
             this.Controls.Add(this.txtLog);
             this.Controls.Add(this.prgBackup);
             this.Controls.Add(this.cmdCancel);
@@ -373,6 +387,7 @@
         private System.Windows.Forms.PictureBox imgOff;
         private System.Windows.Forms.Button cmdBackup;
         private System.Windows.Forms.Button cmdBackupAll;
+        private System.Windows.Forms.Button cmdRestore;
         private System.Windows.Forms.Button cmdCancel;
         private System.Windows.Forms.ProgressBar prgBackup;
         private System.Windows.Forms.TextBox txtLog;

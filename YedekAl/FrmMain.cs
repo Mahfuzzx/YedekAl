@@ -290,6 +290,7 @@ namespace YedekAl
             cmdBackup.Enabled = cmdBackupAll.Enabled = !value;
             cmdSettings.Enabled = mnuProfile.Enabled = cboProfile.Enabled = !value;
             cmdCancel.Enabled = value && backup;
+            cmdRestore.Enabled = !value && selectedBackup() != null;
             if (value)
             {
                 cmdStart.Enabled = false;
@@ -335,9 +336,75 @@ namespace YedekAl
                 item.ToolTipText = entry.message.Length > 0 ? entry.message : entry.path;
                 if (entry.status == BackupStatus.Failed) item.ForeColor = Color.Firebrick;
                 else if (entry.status != BackupStatus.Success) item.ForeColor = SystemColors.GrayText;
+                item.Tag = entry;
                 lvHistory.Items.Add(item);
             }
             lvHistory.EndUpdate();
+            cmdRestore.Enabled = !busy && selectedBackup() != null;
+        }
+
+        private void lvHistory_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            cmdRestore.Enabled = !busy && selectedBackup() != null;
+        }
+
+        // The selected history line, if it is a successful backup whose file is still there.
+        private HistoryEntry selectedBackup()
+        {
+            if (lvHistory.SelectedItems.Count != 1) return null;
+            HistoryEntry entry = lvHistory.SelectedItems[0].Tag as HistoryEntry;
+            if (entry == null || entry.status != BackupStatus.Success) return null;
+            return File.Exists(entry.path) || Directory.Exists(entry.path) ? entry : null;
+        }
+
+        private async void cmdRestore_Click(object sender, EventArgs e)
+        {
+            HistoryEntry entry = selectedBackup();
+            if (entry == null) return;
+            Profile profile = currentProfile;
+            bool keepCurrent;
+            string password;
+            using (FrmRestore frmRestore = new FrmRestore(profile, entry))
+            {
+                if (frmRestore.ShowDialog(this) != DialogResult.OK) return;
+                keepCurrent = frmRestore.keepCurrent;
+                password = frmRestore.password;
+            }
+
+            setBusy(true, true);
+            prgBackup.Value = 0;
+            cancellation = new CancellationTokenSource();
+            CancellationToken token = cancellation.Token;
+            Progress<string> logSink = new Progress<string>(log);
+            Progress<int> percent = new Progress<int>(value => prgBackup.Value = Math.Max(0, Math.Min(100, value)));
+            RestoreResult result = null;
+            try
+            {
+                result = await Task.Run(() =>
+                {
+                    using (BackupLogger logger = new BackupLogger(logSink))
+                    {
+                        return new RestoreEngine(profile, logger, percent).run(entry.path, password, keepCurrent, token);
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                logNow("HATA: " + ex.Message);
+            }
+            finally
+            {
+                setBusy(false, false);
+                cancellation.Dispose();
+                cancellation = null;
+            }
+
+            if (result == null || result.cancelled) return;
+            if (result.success)
+                MessageBox.Show(this, "Veritabanı geri yüklendi." + (result.previousPath != null ? "\r\n\r\nEski veritabanı burada saklandı:\r\n" + result.previousPath : ""),
+                    "YedekAl", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            else
+                MessageBox.Show(this, "Geri yükleme tamamlanamadı:\r\n" + result.message, "YedekAl", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
 
         private static string formatDuration(TimeSpan duration)
