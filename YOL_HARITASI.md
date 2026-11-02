@@ -10,7 +10,7 @@
 
 ## 2. aşama
 - [x] Arşiv şifreleme (7z / RAR; dosya adları da gizlenir, parola DPAPI ile saklanır)
-- [ ] Hata bildirimi (e-posta)
+- [x] Hata bildirimi (e-posta; SMTP + STARTTLS, istenirse başarılı yedeklerde de)
 - [ ] Birden fazla profil
 - [ ] Geri yükleme
 

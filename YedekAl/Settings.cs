@@ -37,6 +37,15 @@ namespace YedekAl
         public string scheduleTime { get; set; } = "23:00";
         public bool autoShutdown { get; set; }
         public int serviceTimeoutSeconds { get; set; } = 60;
+        public bool notifyEnabled { get; set; }
+        public bool notifyOnSuccess { get; set; }
+        public string smtpHost { get; set; } = "";
+        public int smtpPort { get; set; } = 587;
+        public bool smtpSsl { get; set; } = true;
+        public string smtpUser { get; set; } = "";
+        public string protectedSmtpPassword { get; set; } = "";
+        public string mailFrom { get; set; } = "";
+        public string mailTo { get; set; } = "";
 
         public static Settings load()
         {
@@ -72,12 +81,50 @@ namespace YedekAl
 
         public string getPassword()
         {
-            return SecretProtector.unprotect(protectedPassword);
+            return SecretProtector.unprotect(protectedPassword, SecretProtector.archivePassword);
         }
 
         public void setPassword(string password)
         {
-            protectedPassword = SecretProtector.protect(password);
+            protectedPassword = SecretProtector.protect(password, SecretProtector.archivePassword);
+        }
+
+        public string getSmtpPassword()
+        {
+            return SecretProtector.unprotect(protectedSmtpPassword, SecretProtector.smtpPassword);
+        }
+
+        public void setSmtpPassword(string password)
+        {
+            protectedSmtpPassword = SecretProtector.protect(password, SecretProtector.smtpPassword);
+        }
+
+        public List<string> validateMail()
+        {
+            List<string> errors = new List<string>();
+            if (string.IsNullOrWhiteSpace(smtpHost)) errors.Add("E-posta sunucusu boş olamaz.");
+            if (smtpPort < 1 || smtpPort > 65535) errors.Add("E-posta sunucusu bağlantı noktası geçersiz.");
+            // System.Net.Mail only does STARTTLS; implicit TLS on 465 would hang until the timeout.
+            if (smtpPort == 465) errors.Add("465 numaralı bağlantı noktası (SSL) desteklenmiyor; 587 ve güvenli bağlantı (STARTTLS) kullanın.");
+            if (!isMailAddress(mailFrom)) errors.Add("Gönderen adresi geçersiz.");
+            List<string> recipients = MailNotifier.splitRecipients(mailTo);
+            if (recipients.Count == 0) errors.Add("En az bir alıcı adresi girilmelidir.");
+            foreach (string recipient in recipients)
+                if (!isMailAddress(recipient)) errors.Add("Alıcı adresi geçersiz: " + recipient);
+            return errors;
+        }
+
+        private static bool isMailAddress(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return false;
+            try
+            {
+                return new System.Net.Mail.MailAddress(value.Trim()).Address == value.Trim();
+            }
+            catch (FormatException)
+            {
+                return false;
+            }
         }
 
         /// <summary>Null when the password is acceptable, otherwise the reason it is not.</summary>
@@ -128,6 +175,7 @@ namespace YedekAl
                 if (!compress || format == ArchiveFormat.Zip) errors.Add("Şifreleme yalnızca 7z ve RAR biçimlerinde kullanılabilir.");
                 if (string.IsNullOrEmpty(protectedPassword)) errors.Add("Şifreleme için bir parola girilmelidir.");
             }
+            if (notifyEnabled) errors.AddRange(validateMail());
             if (keepLastCount < 0 || keepDays < 0) errors.Add("Saklama değerleri negatif olamaz.");
             if (serviceTimeoutSeconds <= 0) errors.Add("Hizmet zaman aşımı sıfırdan büyük olmalıdır.");
             return errors;

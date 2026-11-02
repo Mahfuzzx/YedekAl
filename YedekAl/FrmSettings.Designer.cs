@@ -72,6 +72,8 @@
             this.dtpScheduleTime = new System.Windows.Forms.DateTimePicker();
             this.lblScheduleNote = new System.Windows.Forms.Label();
             this.chkShutdown = new System.Windows.Forms.CheckBox();
+            this.chkNotify = new System.Windows.Forms.CheckBox();
+            this.cmdNotifySettings = new System.Windows.Forms.Button();
             this.cmdOK = new System.Windows.Forms.Button();
             this.cmdCancel = new System.Windows.Forms.Button();
             this.grpDatabase.SuspendLayout();
@@ -531,12 +533,32 @@
             this.chkShutdown.Text = "Yedek alma tamamlanınca bilgisayarı &kapat";
             this.chkShutdown.UseVisualStyleBackColor = true;
             //
+            // chkNotify
+            //
+            this.chkNotify.AutoSize = true;
+            this.chkNotify.Location = new System.Drawing.Point(27, 636);
+            this.chkNotify.Name = "chkNotify";
+            this.chkNotify.Size = new System.Drawing.Size(240, 17);
+            this.chkNotify.TabIndex = 5;
+            this.chkNotify.Text = "Yedekleme başarısız olursa &e-posta gönder";
+            this.chkNotify.UseVisualStyleBackColor = true;
+            //
+            // cmdNotifySettings
+            //
+            this.cmdNotifySettings.Location = new System.Drawing.Point(300, 632);
+            this.cmdNotifySettings.Name = "cmdNotifySettings";
+            this.cmdNotifySettings.Size = new System.Drawing.Size(130, 23);
+            this.cmdNotifySettings.TabIndex = 6;
+            this.cmdNotifySettings.Text = "E-posta ayarları...";
+            this.cmdNotifySettings.UseVisualStyleBackColor = true;
+            this.cmdNotifySettings.Click += new System.EventHandler(this.cmdNotifySettings_Click);
+            //
             // cmdOK
             //
-            this.cmdOK.Location = new System.Drawing.Point(382, 638);
+            this.cmdOK.Location = new System.Drawing.Point(382, 666);
             this.cmdOK.Name = "cmdOK";
             this.cmdOK.Size = new System.Drawing.Size(80, 25);
-            this.cmdOK.TabIndex = 5;
+            this.cmdOK.TabIndex = 7;
             this.cmdOK.Text = "Kaydet";
             this.cmdOK.UseVisualStyleBackColor = true;
             this.cmdOK.Click += new System.EventHandler(this.cmdOK_Click);
@@ -544,10 +566,10 @@
             // cmdCancel
             //
             this.cmdCancel.DialogResult = System.Windows.Forms.DialogResult.Cancel;
-            this.cmdCancel.Location = new System.Drawing.Point(468, 638);
+            this.cmdCancel.Location = new System.Drawing.Point(468, 666);
             this.cmdCancel.Name = "cmdCancel";
             this.cmdCancel.Size = new System.Drawing.Size(80, 25);
-            this.cmdCancel.TabIndex = 6;
+            this.cmdCancel.TabIndex = 8;
             this.cmdCancel.Text = "Vazgeç";
             this.cmdCancel.UseVisualStyleBackColor = true;
             //
@@ -557,12 +579,14 @@
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.CancelButton = this.cmdCancel;
-            this.ClientSize = new System.Drawing.Size(560, 675);
+            this.ClientSize = new System.Drawing.Size(560, 703);
             this.Controls.Add(this.grpDatabase);
             this.Controls.Add(this.grpBackup);
             this.Controls.Add(this.grpRetention);
             this.Controls.Add(this.grpSchedule);
             this.Controls.Add(this.chkShutdown);
+            this.Controls.Add(this.chkNotify);
+            this.Controls.Add(this.cmdNotifySettings);
             this.Controls.Add(this.cmdOK);
             this.Controls.Add(this.cmdCancel);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedDialog;
@@ -633,6 +657,8 @@
         private System.Windows.Forms.DateTimePicker dtpScheduleTime;
         private System.Windows.Forms.Label lblScheduleNote;
         private System.Windows.Forms.CheckBox chkShutdown;
+        private System.Windows.Forms.CheckBox chkNotify;
+        private System.Windows.Forms.Button cmdNotifySettings;
         private System.Windows.Forms.Button cmdOK;
         private System.Windows.Forms.Button cmdCancel;
     }

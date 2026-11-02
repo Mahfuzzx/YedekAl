@@ -141,7 +141,24 @@ namespace YedekAl
             saveHistory(entry);
             if (entry.status == BackupStatus.Success) applyRetention(entry);
             log.info(result.success ? "******** Yedekleme bitti ********" : "******** Yedekleme başarısız ********");
+            if (settings.notifyEnabled && !result.cancelled && (!result.success || settings.notifyOnSuccess))
+                sendNotification(entry, result);
             return result;
+        }
+
+        // A failed e-mail never changes the backup result; it is only logged.
+        private void sendNotification(HistoryEntry entry, BackupResult result)
+        {
+            try
+            {
+                log.info("Bildirim e-postası gönderiliyor: " + settings.mailTo);
+                MailNotifier.sendReport(settings, entry, result, log.lines);
+                log.info("Bildirim e-postası gönderildi.");
+            }
+            catch (Exception ex)
+            {
+                log.warn("Bildirim e-postası gönderilemedi: " + ex.Message);
+            }
         }
 
         // Everything that can be checked without touching the service. Returns the output path.

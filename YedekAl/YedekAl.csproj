@@ -61,6 +61,12 @@
     <Compile Include="FrmSettings.Designer.cs">
       <DependentUpon>FrmSettings.cs</DependentUpon>
     </Compile>
+    <Compile Include="FrmNotify.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FrmNotify.Designer.cs">
+      <DependentUpon>FrmNotify.cs</DependentUpon>
+    </Compile>
     <Compile Include="FrmMain.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -81,6 +87,7 @@
     <Compile Include="Core\BackupHistory.cs" />
     <Compile Include="Core\BackupLogger.cs" />
     <Compile Include="Core\FileCopier.cs" />
+    <Compile Include="Core\MailNotifier.cs" />
     <Compile Include="Core\PercentReporter.cs" />
     <Compile Include="Core\ScheduledTask.cs" />
     <Compile Include="Core\SecretProtector.cs" />

@@ -8,7 +8,8 @@ namespace YedekAl
 {
     public partial class FrmSettings : Form
     {
-        private readonly Settings original;
+        // Copy of the current settings; FrmNotify writes the e-mail fields into it.
+        private readonly Settings working;
         private string rarPath;
         private string sevenZipPath;
         private ArchiveFormat shownFormat;
@@ -19,7 +20,7 @@ namespace YedekAl
         public FrmSettings(Settings current)
         {
             InitializeComponent();
-            original = current;
+            working = current.clone();
             loading = true;
             // Item order must match the ArchiveFormat and CompressionStrength enums.
             cboFormat.Items.AddRange(new object[] { "ZIP", "RAR", "7z" });
@@ -46,6 +47,7 @@ namespace YedekAl
             chkSchedule.Checked = current.scheduleEnabled;
             dtpScheduleTime.Value = DateTime.Today.Add(current.getScheduleTime());
             chkShutdown.Checked = current.autoShutdown;
+            chkNotify.Checked = current.notifyEnabled;
             loading = false;
             updateControls();
         }
@@ -53,7 +55,7 @@ namespace YedekAl
         private void cmdOK_Click(object sender, EventArgs e)
         {
             storeExePath();
-            Settings result = original.clone();
+            Settings result = working.clone();
             result.serviceName = txtServiceName.Text.Trim();
             result.dbPath = txtDatabaseDir.Text.Trim();
             result.backupPath = txtBackupDir.Text.Trim();
@@ -70,6 +72,7 @@ namespace YedekAl
             result.scheduleEnabled = chkSchedule.Checked;
             result.scheduleTime = dtpScheduleTime.Value.ToString("HH:mm", CultureInfo.InvariantCulture);
             result.autoShutdown = chkShutdown.Checked;
+            result.notifyEnabled = chkNotify.Checked;
 
             // An empty password box keeps the stored password; turning encryption off forgets it.
             result.encrypt = chkEncrypt.Checked;
@@ -146,6 +149,15 @@ namespace YedekAl
         private void chkCompress_CheckedChanged(object sender, EventArgs e)
         {
             if (!loading) updateControls();
+        }
+
+        private void cmdNotifySettings_Click(object sender, EventArgs e)
+        {
+            using (FrmNotify frmNotify = new FrmNotify(working))
+            {
+                // Configuring e-mail implies wanting it; the checkbox can still be cleared afterwards.
+                if (frmNotify.ShowDialog(this) == DialogResult.OK) chkNotify.Checked = true;
+            }
         }
 
         private void chkEncrypt_CheckedChanged(object sender, EventArgs e)

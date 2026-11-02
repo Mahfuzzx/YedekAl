@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
@@ -12,6 +13,7 @@ namespace YedekAl
         private readonly object sync = new object();
         private readonly StreamWriter writer;
         private readonly IProgress<string> sink;
+        private readonly List<string> runLines = new List<string>();
 
         public BackupLogger(IProgress<string> sink)
         {
@@ -27,6 +29,18 @@ namespace YedekAl
         public void warn(string message) { write("UYARI", "UYARI: ", message); }
         public void error(string message) { write("HATA", "HATA: ", message); }
 
+        // Lines written through this logger, for the notification e-mail.
+        public List<string> lines
+        {
+            get
+            {
+                lock (sync)
+                {
+                    return new List<string>(runLines);
+                }
+            }
+        }
+
         public void Dispose()
         {
             writer.Dispose();
@@ -35,11 +49,13 @@ namespace YedekAl
         private void write(string level, string prefix, string message)
         {
             DateTime now = DateTime.Now;
+            string shortLine = string.Format(CultureInfo.InvariantCulture, "{0:HH:mm:ss}  {1}{2}", now, prefix, message);
             lock (sync)
             {
                 writer.WriteLine(string.Format(CultureInfo.InvariantCulture, "{0:yyyy-MM-dd HH:mm:ss} [{1}] {2}", now, level, message));
+                runLines.Add(shortLine);
             }
-            sink?.Report(string.Format(CultureInfo.InvariantCulture, "{0:HH:mm:ss}  {1}{2}", now, prefix, message));
+            sink?.Report(shortLine);
         }
 
         private static void deleteOldLogs()
